@@ -24,7 +24,13 @@ npm test
 3. Railway detects Node, installs with `npm ci`, and starts `npm start` (`node server.js`).
 4. A `Dockerfile` is included if you prefer image builds (Railway uses it automatically when present).
 5. Under **Settings → Networking**, generate a public domain.
-6. Confirm [https://your-app.up.railway.app/health](https://your-app.up.railway.app/health) returns `{"ok":true,...}`.
+6. Confirm `/health` returns `"version": "1.1.0"` and a `commit` SHA. If `commit` is missing or old, Railway is not on the latest GitHub `main`.
+
+Railway **Redeploy** rebuilds the *same old commit*. It does not pull GitHub. After new pushes:
+
+1. Service → **Settings → Source** — repo `robottdev/SolarDrift`, branch **`main`**, autodeploy **on**.
+2. Command Palette (`Ctrl+K` / `Cmd+K`) → **Deploy Latest Commit**.
+3. Hard-refresh the game (`Ctrl+Shift+R`).
 
 The process **must** listen on `process.env.PORT` (already wired). No other environment variables are required.
 
