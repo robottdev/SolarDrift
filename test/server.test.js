@@ -14,6 +14,7 @@ test("health endpoint is Railway-ready", async () => {
   assert.equal(res.status, 200);
   assert.equal(body.ok, true);
   assert.equal(body.service, "solar-drift");
+  assert.equal(body.version, "1.1.0");
   server.close();
 });
 
@@ -27,6 +28,7 @@ test("index and game modules are served", async () => {
   const html = await home.text();
   assert.equal(home.status, 200);
   assert.match(html, /SOLAR DRIFT/);
+  assert.match(html, /v=1\.1\.0/);
   const logic = await fetch(`http://127.0.0.1:${port}/lib/logic.js`);
   assert.equal(logic.status, 200);
   const game = await fetch(`http://127.0.0.1:${port}/js/game.js`);

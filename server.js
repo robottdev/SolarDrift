@@ -17,14 +17,29 @@ export function createApp() {
     res.status(200).json({
       ok: true,
       service: "solar-drift",
-      version: "1.0.0",
+      version: "1.1.0",
+      commit: process.env.RAILWAY_GIT_COMMIT_SHA || null,
+      branch: process.env.RAILWAY_GIT_BRANCH || null,
     });
   });
 
-  const isProd = process.env.NODE_ENV === "production";
-  const staticOpts = isProd
-    ? { maxAge: "1h" }
-    : { etag: false, lastModified: false, cacheControl: false, maxAge: 0 };
+  function setStaticHeaders(res, filePath) {
+    if (filePath.endsWith(".html")) {
+      res.setHeader("Cache-Control", "no-store");
+      return;
+    }
+    if (/\.(js|css|mjs)$/.test(filePath)) {
+      res.setHeader("Cache-Control", "no-cache");
+      return;
+    }
+    res.setHeader("Cache-Control", "public, max-age=604800");
+  }
+
+  const staticOpts = {
+    etag: true,
+    lastModified: true,
+    setHeaders: setStaticHeaders,
+  };
 
   app.use("/lib", express.static(path.join(__dirname, "lib"), staticOpts));
   app.use(express.static(path.join(__dirname, "public"), staticOpts));
@@ -34,6 +49,7 @@ export function createApp() {
       res.status(405).end();
       return;
     }
+    res.setHeader("Cache-Control", "no-store");
     res.sendFile(path.join(__dirname, "public", "index.html"));
   });
 
