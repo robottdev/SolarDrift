@@ -201,8 +201,8 @@ export class Game {
     this.time = 0;
     this.flags = {};
     this.player = {
-      x: 8,
-      y: -36,
+      x: 0,
+      y: -90,
       angle: -Math.PI / 2,
       vx: 0,
       vy: 0,
@@ -271,8 +271,8 @@ export class Game {
       this.makeShip({
         id: "kade",
         name: "Kade",
-        x: 36,
-        y: -16,
+        x: 48,
+        y: -70,
         faction: "ally",
         sprite: "ally",
         cloaked: true,
@@ -1228,16 +1228,16 @@ export class Game {
     ctx.save();
     ctx.strokeStyle = shot.color || "#5ce1ff";
     ctx.shadowColor = shot.color || "#5ce1ff";
-    ctx.shadowBlur = 16;
-    ctx.lineWidth = shot.missile ? 3.2 : 2.4;
+    ctx.shadowBlur = 8;
+    ctx.lineWidth = shot.missile ? 1.6 : 0.9;
     ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(shot.x, shot.y);
-    ctx.lineTo(shot.x - shot.vx * 0.14, shot.y - shot.vy * 0.14);
+    ctx.lineTo(shot.x - shot.vx * 0.12, shot.y - shot.vy * 0.12);
     ctx.stroke();
     ctx.restore();
     const img = this.img[shot.sprite];
-    this.drawSprite(ctx, img, shot.x, shot.y, ang, shot.missile ? 18 : 14);
+    this.drawSprite(ctx, img, shot.x, shot.y, ang, shot.missile ? 10 : 7);
   }
 
   drawBody(ctx, body, p) {
