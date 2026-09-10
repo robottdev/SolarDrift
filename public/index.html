@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Solar Drift — The Breakout</title>
+    <title>Solar Drift — The Setup</title>
     <meta
       name="description"
-      content="A shareware-era top-down space opera inspired by Solar Winds (1993). Fly, fight, allocate power, and break the cage."
+      content="Captain (self-proclaimed) Scott and his AI PIP repair a damaged ship after a setup, then get back to exploring the galaxy."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,7 +15,7 @@
       href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=IBM+Plex+Sans:wght@400;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/style.css?v=1.1.0" />
+    <link rel="stylesheet" href="/css/style.css?v=1.2.0" />
   </head>
   <body>
     <div class="scanlines" aria-hidden="true"></div>
@@ -24,17 +24,17 @@
       <div class="title-card">
         <p class="eyebrow">Stone-era shareware · 1993 reimagined</p>
         <h1>SOLAR DRIFT</h1>
-        <p class="episode">Episode I · The Breakout</p>
+        <p class="episode">Episode I · The Setup</p>
         <p class="tag">
-          Top-down space combat, power allocation, cargo runs, and a system that does not want you to leave.
+          You are Captain Scott (self-proclaimed). Your ship is junk. Your AI will not let you forget it.
         </p>
         <div class="title-actions">
-          <button id="btn-new" class="primary">New Contract</button>
+          <button id="btn-new" class="primary">Start Drifting</button>
           <button id="btn-continue" class="ghost" disabled>Continue</button>
           <button id="btn-how" class="ghost">How to Fly</button>
         </div>
         <p class="fineprint">
-          Inspired by <em>Solar Winds</em> (James Schmalz / Epic MegaGames, 1993). Original story.
+          Inspired by <em>Solar Winds</em> (James Schmalz / Epic MegaGames, 1993). Original story: Captain Scott and PIP.
           Sprites: <a href="https://kenney.nl">Kenney.nl</a> (CC0). Nebula: NASA/Hubble (public domain).
           Not affiliated with Epic Games.
         </p>
@@ -52,7 +52,7 @@
           <li><kbd>H</kbd> / <kbd>F10</kbd> hyperdrive · <kbd>+</kbd><kbd>-</kbd> throttle (needs Hyperdrive Core, clear space)</li>
           <li>Engineering sliders split reactor output across weapons, life support, engines, sensors, and four shield facings</li>
           <li>Match waveforms to blunt incoming fire. Mismatch yours to punch through theirs.</li>
-          <li>Do not fly the Vortex Gate with Voidseed still in the hold.</li>
+          <li>Do not fly the Old Jump Ring with Jump Juice still in the hold.</li>
         </ul>
         <button id="btn-how-close" class="primary">Seal Brief</button>
       </div>
@@ -60,6 +60,7 @@
 
     <section id="intro" class="overlay hidden">
       <div class="intro-card">
+        <p class="who" id="intro-who"></p>
         <p id="intro-text"></p>
         <button id="btn-intro" class="primary">Continue</button>
       </div>
@@ -69,7 +70,7 @@
       <canvas id="view"></canvas>
       <aside id="console">
         <header class="console-head">
-          <span>VALE · FV-9</span>
+          <span id="callsign">SCOTT · PIP</span>
           <span id="clock">00:00</span>
         </header>
         <section>
@@ -123,7 +124,7 @@
         </section>
       </aside>
       <div id="mission-bar">
-        <strong id="mission-title">Ghost Contact</strong>
+        <strong id="mission-title">The Invoice</strong>
         <span id="mission-brief"></span>
       </div>
       <div id="toast" class="hidden"></div>
@@ -153,21 +154,21 @@
     <section id="dead" class="overlay hidden">
       <div class="panel-card">
         <h2>Hull Lost</h2>
-        <p id="dead-reason">The black does not refund contracts.</p>
+        <p id="dead-reason">PIP: I told you the hull was mostly opinion.</p>
         <button id="btn-retry" class="primary">Reload Save</button>
-        <button id="btn-restart" class="ghost">New Contract</button>
+        <button id="btn-restart" class="ghost">Start Drifting</button>
       </div>
     </section>
 
     <section id="ending" class="overlay hidden">
       <div class="panel-card">
-        <p class="eyebrow">Episode I complete</p>
-        <h2>Beyond the Cage</h2>
+        <p class="eyebrow" id="ending-eyebrow">Episode I complete</p>
+        <h2 id="ending-title">The Galaxy, Probably</h2>
         <p id="ending-text"></p>
         <button id="btn-ending-title" class="primary">Return to Title</button>
       </div>
     </section>
 
-    <script type="module" src="/js/main.js?v=1.1.0"></script>
+    <script type="module" src="/js/main.js?v=1.2.0"></script>
   </body>
 </html>

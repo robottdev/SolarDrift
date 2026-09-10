@@ -17,7 +17,7 @@ export function createApp() {
     res.status(200).json({
       ok: true,
       service: "solar-drift",
-      version: "1.1.0",
+      version: "1.2.0",
       commit: process.env.RAILWAY_GIT_COMMIT_SHA || null,
       branch: process.env.RAILWAY_GIT_BRANCH || null,
     });
