@@ -12,6 +12,7 @@ import {
   laserDamage,
   navHazard,
   nextMissionIndex,
+  cameraScale,
   sensorZoom,
   setSystemPower,
   shieldAbsorb,
@@ -55,6 +56,8 @@ test("hyperdrive scales with engine throttle", () => {
 
 test("sensors zoom out as power rises", () => {
   assert.equal(sensorZoom(0) < sensorZoom(120), true);
+  assert.ok(cameraScale(30) > 2.5, "combat camera stays zoomed in");
+  assert.ok(cameraScale(0) > cameraScale(120));
 });
 
 test("nav hazard blocks hyperdrive near planets", () => {

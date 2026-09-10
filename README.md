@@ -53,3 +53,7 @@ Dump reactor gigawatts into **engines** before a jump. Matched shield/weapon wav
 You are bounty hunter Ryn Vale, hired by Governor Hale to crush a forbidden hyperdrive cell. A cloaked informant, a wrecked scanner, a convoy, a moon lab, and a lock in the cage wall tell a different story.
 
 Use **Lock Objective** on the nav computer if you lose the plot.
+
+## Art
+
+Combat view uses [Kenney Space Shooter Redux](https://kenney.nl/assets/space-shooter-redux) (CC0, via OpenGameArt) for ships, lasers, and asteroids, plus a public-domain [NASA/Hubble](https://www.nasa.gov/nasa-brand-center/images-and-media/) nebula. See `public/assets/ATTRIBUTION.md`.
