@@ -21,8 +21,13 @@ export function createApp() {
     });
   });
 
-  app.use("/lib", express.static(path.join(__dirname, "lib"), { maxAge: "1h" }));
-  app.use(express.static(path.join(__dirname, "public"), { maxAge: "1h" }));
+  const isProd = process.env.NODE_ENV === "production";
+  const staticOpts = isProd
+    ? { maxAge: "1h" }
+    : { etag: false, lastModified: false, cacheControl: false, maxAge: 0 };
+
+  app.use("/lib", express.static(path.join(__dirname, "lib"), staticOpts));
+  app.use(express.static(path.join(__dirname, "public"), staticOpts));
 
   app.use((req, res) => {
     if (req.method !== "GET" && req.method !== "HEAD") {

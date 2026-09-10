@@ -199,7 +199,7 @@ export class Game {
     this.flags = {};
     this.player = {
       x: 8,
-      y: -22,
+      y: -36,
       angle: -Math.PI / 2,
       vx: 0,
       vy: 0,
@@ -1186,7 +1186,7 @@ export class Game {
     rtx.beginPath();
     rtx.arc(w / 2, h / 2, 90, 0, Math.PI * 2);
     rtx.stroke();
-    const scale = 0.08;
+    const scale = 0.12;
     const plot = (x, y, color, size = 3) => {
       rtx.fillStyle = color;
       rtx.fillRect(w / 2 + (x - this.player.x) * scale - size / 2, h / 2 + (y - this.player.y) * scale - size / 2, size, size);
