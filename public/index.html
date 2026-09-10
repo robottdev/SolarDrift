@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Solar Drift — The Breakout</title>
+    <meta
+      name="description"
+      content="A shareware-era top-down space opera inspired by Solar Winds (1993). Fly, fight, allocate power, and break the cage."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=IBM+Plex+Sans:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <div class="scanlines" aria-hidden="true"></div>
+
+    <section id="title" class="overlay">
+      <div class="title-card">
+        <p class="eyebrow">Stone-era shareware · 1993 reimagined</p>
+        <h1>SOLAR DRIFT</h1>
+        <p class="episode">Episode I · The Breakout</p>
+        <p class="tag">
+          Top-down space combat, power allocation, cargo runs, and a system that does not want you to leave.
+        </p>
+        <div class="title-actions">
+          <button id="btn-new" class="primary">New Contract</button>
+          <button id="btn-continue" class="ghost" disabled>Continue</button>
+          <button id="btn-how" class="ghost">How to Fly</button>
+        </div>
+        <p class="fineprint">
+          Inspired by <em>Solar Winds</em> (James Schmalz / Epic MegaGames, 1993). Original story, systems, and art.
+          Not affiliated with Epic Games.
+        </p>
+      </div>
+    </section>
+
+    <section id="how" class="overlay hidden">
+      <div class="panel-card">
+        <h2>Pilot Brief</h2>
+        <ul class="help">
+          <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows — thrust / rotate · click space to plot a course</li>
+          <li><kbd>Space</kbd> lasers · <kbd>M</kbd> missile · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> laser banks</li>
+          <li><kbd>[</kbd><kbd>]</kbd> weapon waveform · <kbd>;</kbd><kbd>'</kbd> shield waveform</li>
+          <li><kbd>C</kbd> hail · <kbd>V</kbd> scan · <kbd>T</kbd> transport cargo</li>
+          <li><kbd>H</kbd> / <kbd>F10</kbd> hyperdrive · <kbd>+</kbd><kbd>-</kbd> throttle (needs Hyperdrive Core, clear space)</li>
+          <li>Engineering sliders split reactor output across weapons, life support, engines, sensors, and four shield facings</li>
+          <li>Match waveforms to blunt incoming fire. Mismatch yours to punch through theirs.</li>
+          <li>Do not fly the Vortex Gate with Voidseed still in the hold.</li>
+        </ul>
+        <button id="btn-how-close" class="primary">Seal Brief</button>
+      </div>
+    </section>
+
+    <section id="intro" class="overlay hidden">
+      <div class="intro-card">
+        <p id="intro-text"></p>
+        <button id="btn-intro" class="primary">Continue</button>
+      </div>
+    </section>
+
+    <div id="game" class="hidden">
+      <canvas id="view"></canvas>
+      <aside id="console">
+        <header class="console-head">
+          <span>VALE · FV-9</span>
+          <span id="clock">00:00</span>
+        </header>
+        <section>
+          <h3>Radar</h3>
+          <canvas id="radar" width="220" height="220"></canvas>
+          <p class="coords">NAV <span id="coords">0, 0</span></p>
+        </section>
+        <section>
+          <h3>Nav Computer</h3>
+          <div class="nav-row">
+            <input id="nav-x" type="number" placeholder="X" />
+            <input id="nav-y" type="number" placeholder="Y" />
+            <button id="btn-plot" data-act="plot">PLOT</button>
+          </div>
+          <button id="btn-objective" data-act="lock-objective">Lock Objective</button>
+        </section>
+        <section>
+          <h3>Weapons</h3>
+          <div class="row">
+            <span>Banks</span>
+            <div class="seg" id="banks"></div>
+          </div>
+          <div class="row">
+            <span>W-Wave</span>
+            <button data-act="w-wave">—</button>
+          </div>
+          <div class="row">
+            <span>S-Wave</span>
+            <button data-act="s-wave">—</button>
+          </div>
+          <div class="row">
+            <span>Missiles</span>
+            <strong id="missiles">6</strong>
+          </div>
+        </section>
+        <section>
+          <h3>Reactor</h3>
+          <p class="coords">UNALLOC <span id="unalloc">0</span> GW · FLUX <span id="fuel">0</span></p>
+          <div id="systems"></div>
+        </section>
+        <section>
+          <h3>Hold</h3>
+          <ul id="cargo" class="cargo"></ul>
+        </section>
+        <section class="actions">
+          <button data-act="hail">COMMS</button>
+          <button data-act="scan">SCAN</button>
+          <button data-act="transport">XFER</button>
+          <button data-act="hyper">HYP</button>
+          <button data-act="pause">II</button>
+        </section>
+      </aside>
+      <div id="mission-bar">
+        <strong id="mission-title">Ghost Contact</strong>
+        <span id="mission-brief"></span>
+      </div>
+      <div id="toast" class="hidden"></div>
+    </div>
+
+    <section id="dialogue" class="overlay hidden">
+      <div class="dialogue-card">
+        <div class="portrait" id="portrait"></div>
+        <div>
+          <p class="who" id="who"></p>
+          <p class="line" id="line"></p>
+          <div id="choices" class="choices"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="pause" class="overlay hidden">
+      <div class="panel-card">
+        <h2>Paused</h2>
+        <button data-act="resume" class="primary">Resume</button>
+        <button data-act="save">Save Slot</button>
+        <button data-act="load">Load Slot</button>
+        <button data-act="title">Abandon to Title</button>
+      </div>
+    </section>
+
+    <section id="dead" class="overlay hidden">
+      <div class="panel-card">
+        <h2>Hull Lost</h2>
+        <p id="dead-reason">The black does not refund contracts.</p>
+        <button id="btn-retry" class="primary">Reload Save</button>
+        <button id="btn-restart" class="ghost">New Contract</button>
+      </div>
+    </section>
+
+    <section id="ending" class="overlay hidden">
+      <div class="panel-card">
+        <p class="eyebrow">Episode I complete</p>
+        <h2>Beyond the Cage</h2>
+        <p id="ending-text"></p>
+        <button id="btn-ending-title" class="primary">Return to Title</button>
+      </div>
+    </section>
+
+    <script type="module" src="/js/main.js"></script>
+  </body>
+</html>
