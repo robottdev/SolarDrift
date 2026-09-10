@@ -142,6 +142,10 @@ button:disabled {
   cursor: not-allowed;
 }
 
+a {
+  color: var(--cyan);
+}
+
 .help {
   padding-left: 18px;
   font-family: var(--sans);

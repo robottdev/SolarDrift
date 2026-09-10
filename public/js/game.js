@@ -3,6 +3,7 @@ import {
   WAVEFORMS,
   angleTo,
   allocatedTotal,
+  cameraScale,
   canEnterGate,
   clamp,
   dist,
@@ -18,7 +19,6 @@ import {
   nextMissionIndex,
   repairRate,
   sensorRange,
-  sensorZoom,
   setSystemPower,
   shieldAbsorb,
   shortestAngle,
@@ -64,12 +64,15 @@ export class Game {
     this.ctx = this.view.getContext("2d");
     this.rtx = this.radar.getContext("2d");
     this.keys = new Set();
-    this.stars = Array.from({ length: 420 }, () => ({
+    this.stars = Array.from({ length: 280 }, () => ({
       x: Math.random() * 8000 - 4000,
       y: Math.random() * 8000 - 4000,
       z: Math.random() * 2 + 0.3,
       a: Math.random(),
     }));
+    this.img = {};
+    this.scale = cameraScale(30);
+    this.loadImages();
     this.shake = 0;
     this.toastTimer = 0;
     this.introIndex = 0;
@@ -223,8 +226,44 @@ export class Game {
     this.ships = [];
     this.projectiles = [];
     this.particles = [];
+    this.rocks = [];
     this.spawnWorld(fresh);
     this.syncHud();
+  }
+
+  loadImages() {
+    const spec = {
+      player: "/assets/ships/player.png",
+      ally: "/assets/ships/ally.png",
+      patrol: "/assets/ships/patrol.png",
+      raider: "/assets/ships/raider.png",
+      raiderHeavy: "/assets/ships/raider-heavy.png",
+      gunship: "/assets/ships/gunship.png",
+      warden: "/assets/ships/warden.png",
+      trader: "/assets/ships/trader.png",
+      ufo: "/assets/ships/ufo.png",
+      laserBlue: "/assets/fx/laser-blue.png",
+      laserRed: "/assets/fx/laser-red.png",
+      laserGreen: "/assets/fx/laser-green.png",
+      boltBlue: "/assets/fx/bolt-blue.png",
+      boltRed: "/assets/fx/bolt-red.png",
+      flame: "/assets/fx/flame.png",
+      shield: "/assets/fx/shield.png",
+      star1: "/assets/fx/star1.png",
+      nebula: "/assets/bg/nebula.jpg",
+      starsTile: "/assets/bg/stars-tile.png",
+      rockA: "/assets/world/rock-a.png",
+      rockB: "/assets/world/rock-b.png",
+      rockC: "/assets/world/rock-c.png",
+      rockD: "/assets/world/rock-d.png",
+      rockE: "/assets/world/rock-e.png",
+      rockF: "/assets/world/rock-f.png",
+    };
+    for (const [key, src] of Object.entries(spec)) {
+      const im = new Image();
+      im.src = src;
+      this.img[key] = im;
+    }
   }
 
   spawnWorld(fresh) {
@@ -235,6 +274,7 @@ export class Game {
         x: 36,
         y: -16,
         faction: "ally",
+        sprite: "ally",
         cloaked: true,
         waveform: "saw",
         comms: "kade",
@@ -254,12 +294,14 @@ export class Game {
           x,
           y,
           faction: "gov",
+          sprite: "patrol",
           waveform: pick(WAVEFORMS),
           ai: "orbit",
           orbit: { x: -90, y: 70, r: 70 + i * 18 },
         })
       );
     });
+    this.spawnRocks();
     if (!fresh && this.flags.reportedIn && !this.flags.convoyCleared) this.spawnConvoy();
     if (!fresh && this.flags.talkedLira && !this.flags.rescuedColony) this.spawnGunships();
   }
@@ -278,6 +320,33 @@ export class Game {
     };
   }
 
+  spawnRocks() {
+    const kinds = ["rockA", "rockB", "rockC", "rockD", "rockE", "rockF"];
+    this.rocks = [];
+    for (let i = 0; i < 52; i++) {
+      const ang = rand(0, Math.PI * 2);
+      const rad = rand(80, 520);
+      this.rocks.push({
+        x: Math.cos(ang) * rad + rand(-40, 40),
+        y: Math.sin(ang) * rad + rand(-40, 40),
+        size: rand(14, 38),
+        rot: rand(0, Math.PI * 2),
+        spin: rand(-0.35, 0.35),
+        kind: pick(kinds),
+      });
+    }
+    for (let i = 0; i < 18; i++) {
+      this.rocks.push({
+        x: 160 + rand(-90, 90),
+        y: -110 + rand(-80, 80),
+        size: rand(12, 32),
+        rot: rand(0, Math.PI * 2),
+        spin: rand(-0.5, 0.5),
+        kind: pick(kinds),
+      });
+    }
+  }
+
   spawnConvoy() {
     if (this.ships.some((s) => s.group === "convoy" && !s.dead)) return;
     for (let i = 0; i < 3; i++) {
@@ -289,6 +358,7 @@ export class Game {
           x: 190 + i * 28,
           y: -80 - i * 16,
           faction: "raider",
+          sprite: "raider",
           waveform: pick(WAVEFORMS),
           ai: "chase",
           hull: 48,
@@ -310,6 +380,7 @@ export class Game {
           x: -1460 + i * 30,
           y: 1100 + (i % 2) * 40,
           faction: "warden",
+          sprite: "gunship",
           waveform: pick(WAVEFORMS),
           ai: "chase",
           hull: 70,
@@ -632,21 +703,23 @@ export class Game {
       return;
     }
     p.fuel -= cost;
-    p.fireCd = 0.18 + (3 - p.banks) * 0.05;
+    p.fireCd = 0.16 + (3 - p.banks) * 0.04;
     this.audio.laser();
-    const spread = (p.banks - 1) * 0.08;
+    const spread = (p.banks - 1) * 0.09;
     for (let i = 0; i < p.banks; i++) {
       const a = p.angle + (i - (p.banks - 1) / 2) * spread;
       this.projectiles.push({
-        x: p.x + Math.cos(a) * 18,
-        y: p.y + Math.sin(a) * 18,
-        vx: Math.cos(a) * 520 + p.vx,
-        vy: Math.sin(a) * 520 + p.vy,
-        life: 1.1,
+        x: p.x + Math.cos(a) * 22,
+        y: p.y + Math.sin(a) * 22,
+        vx: Math.cos(a) * 280 + p.vx,
+        vy: Math.sin(a) * 280 + p.vy,
+        life: 0.85,
         from: "player",
         wave: p.waveform,
         missile: false,
         banks: p.banks,
+        sprite: "laserBlue",
+        color: "#5ce1ff",
       });
     }
   }
@@ -660,12 +733,14 @@ export class Game {
     this.projectiles.push({
       x: p.x,
       y: p.y,
-      vx: Math.cos(p.angle) * 280 + p.vx,
-      vy: Math.sin(p.angle) * 280 + p.vy,
+      vx: Math.cos(p.angle) * 210 + p.vx,
+      vy: Math.sin(p.angle) * 210 + p.vy,
       life: 2.2,
       from: "player",
       wave: p.waveform,
       missile: true,
+      sprite: "boltBlue",
+      color: "#ffc14a",
       target: this.nearestEnemy(),
     });
   }
@@ -737,6 +812,7 @@ export class Game {
       Boolean(p.nav);
     const reverse = this.keys.has("s") || this.keys.has("S") || this.keys.has("ArrowDown");
     const accel = thrustAccel(p.power.engines);
+    p.thrusting = thrusting;
     if (thrusting) {
       p.vx += Math.cos(p.angle) * accel * dt;
       p.vy += Math.sin(p.angle) * accel * dt;
@@ -813,9 +889,9 @@ export class Game {
       if (s.ai === "chase" || s.hostile) {
         const desired = angleTo(s.x, s.y, this.player.x, this.player.y);
         s.angle = wrapAngle(s.angle + clamp(shortestAngle(s.angle, desired), -2 * dt, 2 * dt));
-        s.vx += Math.cos(s.angle) * 80 * dt;
-        s.vy += Math.sin(s.angle) * 80 * dt;
-        const cap = 140;
+        s.vx += Math.cos(s.angle) * 55 * dt;
+        s.vy += Math.sin(s.angle) * 55 * dt;
+        const cap = 72;
         const sp = Math.hypot(s.vx, s.vy);
         if (sp > cap) {
           s.vx *= cap / sp;
@@ -825,17 +901,20 @@ export class Game {
         s.y += s.vy * dt;
         s.fireCd -= dt;
         const d = dist(s.x, s.y, this.player.x, this.player.y);
-        if (d < 420 && s.fireCd <= 0 && Math.abs(shortestAngle(s.angle, desired)) < 0.4) {
-          s.fireCd = 0.7;
+        if (d < 180 && s.fireCd <= 0 && Math.abs(shortestAngle(s.angle, desired)) < 0.35) {
+          s.fireCd = 0.85;
+          const a = s.angle;
           this.projectiles.push({
-            x: s.x,
-            y: s.y,
-            vx: Math.cos(s.angle) * 400,
-            vy: Math.sin(s.angle) * 400,
-            life: 1.2,
+            x: s.x + Math.cos(a) * 18,
+            y: s.y + Math.sin(a) * 18,
+            vx: Math.cos(a) * 240,
+            vy: Math.sin(a) * 240,
+            life: 0.9,
             from: s.id,
             wave: s.waveform,
             missile: false,
+            sprite: "laserRed",
+            color: "#ff5a9a",
           });
         }
       }
@@ -859,7 +938,7 @@ export class Game {
       if (shot.from === "player") {
         for (const s of this.ships) {
           if (s.dead || s.cloaked || s.faction === "ally") continue;
-          if (dist(shot.x, shot.y, s.x, s.y) < 16) {
+          if (dist(shot.x, shot.y, s.x, s.y) < 22) {
             const dmg = shot.missile
               ? missileDamage(p.power.weapons)
               : laserDamage(p.power.weapons, shot.banks || 1, shot.wave, s.waveform);
@@ -870,7 +949,7 @@ export class Game {
             if (!s.hostile && s.faction === "gov") s.hostile = true;
           }
         }
-      } else if (dist(shot.x, shot.y, p.x, p.y) < 16) {
+      } else if (dist(shot.x, shot.y, p.x, p.y) < 20) {
         this.hitPlayer(shot);
         shot.life = 0;
       }
@@ -932,6 +1011,7 @@ export class Game {
       q.life -= dt;
     }
     this.particles = this.particles.filter((q) => q.life > 0);
+    for (const rock of this.rocks) rock.rot += rock.spin * dt;
   }
 
   regen(dt) {
@@ -1016,13 +1096,22 @@ export class Game {
     this.h = rect.height;
   }
 
+  viewScale() {
+    const p = this.player;
+    let scale = cameraScale(p.power.sensors);
+    const threat = this.ships.some(
+      (s) => !s.dead && s.hostile && dist(p.x, p.y, s.x, s.y) < 170
+    );
+    if (threat) scale *= 1.12;
+    this.scale = scale;
+    return scale;
+  }
+
   screenToWorld(sx, sy) {
-    const zoom = sensorZoom(this.player.power.sensors);
-    const camx = this.player.x;
-    const camy = this.player.y;
+    const scale = this.scale || cameraScale(this.player.power.sensors);
     return {
-      x: (sx - this.w / 2) * zoom + camx,
-      y: (sy - this.h / 2) * zoom + camy,
+      x: (sx - this.w / 2) / scale + this.player.x,
+      y: (sy - this.h / 2) / scale + this.player.y,
     };
   }
 
@@ -1030,32 +1119,27 @@ export class Game {
     if (!this.w) this.resize();
     const ctx = this.ctx;
     const p = this.player;
-    const zoom = this.mode === "play" || this.mode === "dialogue" || this.mode === "pause" ? sensorZoom(p.power.sensors) : 1.4;
-    ctx.fillStyle = "#02030a";
+    const scale = this.viewScale();
+    ctx.fillStyle = "#05010a";
     ctx.fillRect(0, 0, this.w, this.h);
     ctx.save();
     ctx.translate((this.shake && (Math.random() - 0.5) * this.shake) || 0, (this.shake && (Math.random() - 0.5) * this.shake) || 0);
     ctx.translate(this.w / 2, this.h / 2);
-    ctx.scale(1 / zoom, 1 / zoom);
+    ctx.scale(scale, scale);
     ctx.translate(-p.x, -p.y);
 
-    this.drawStars(ctx, p, zoom);
+    this.drawNebula(ctx, p);
+    this.drawStars(ctx, p, scale);
+    for (const rock of this.rocks) this.drawRock(ctx, rock);
     for (const body of PLANETS) this.drawBody(ctx, body, p);
     if (p.nav) this.drawNav(ctx, p);
     for (const s of this.ships) if (!s.dead && !s.cloaked) this.drawShip(ctx, s, false);
     this.drawShip(ctx, p, true);
-    for (const shot of this.projectiles) {
-      ctx.strokeStyle = shot.missile ? "#ffc14a" : "#5ce1ff";
-      ctx.lineWidth = shot.missile ? 3 : 1.5;
-      ctx.beginPath();
-      ctx.moveTo(shot.x, shot.y);
-      ctx.lineTo(shot.x - shot.vx * 0.03, shot.y - shot.vy * 0.03);
-      ctx.stroke();
-    }
+    for (const shot of this.projectiles) this.drawShot(ctx, shot);
     for (const q of this.particles) {
       ctx.fillStyle = q.color;
       ctx.globalAlpha = clamp(q.life * 2, 0, 1);
-      ctx.fillRect(q.x, q.y, 2, 2);
+      ctx.fillRect(q.x - 1, q.y - 1, 2.4, 2.4);
       ctx.globalAlpha = 1;
     }
     ctx.restore();
@@ -1063,32 +1147,114 @@ export class Game {
     this.drawRadar();
   }
 
-  drawStars(ctx, p, zoom) {
-    ctx.fillStyle = "#d7e6ff";
+  drawNebula(ctx, p) {
+    const neb = this.img.nebula;
+    const tile = this.img.starsTile;
+    if (tile && tile.complete && tile.naturalWidth) {
+      ctx.save();
+      ctx.globalAlpha = 0.45;
+      const ox = (p.x * 0.04) % 256;
+      const oy = (p.y * 0.04) % 256;
+      ctx.drawImage(tile, p.x - 700 - ox, p.y - 500 - oy, 1400, 1000);
+      ctx.restore();
+    }
+    if (neb && neb.complete && neb.naturalWidth) {
+      ctx.save();
+      ctx.globalAlpha = 0.72;
+      ctx.drawImage(neb, p.x - 920 - p.x * 0.12, p.y - 620 - p.y * 0.12, 1840, 1240);
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = 0.18;
+      const g = ctx.createRadialGradient(p.x + 80, p.y - 40, 40, p.x, p.y, 520);
+      g.addColorStop(0, "rgba(255, 80, 140, 0.65)");
+      g.addColorStop(0.45, "rgba(90, 40, 160, 0.35)");
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(p.x - 900, p.y - 700, 1800, 1400);
+      ctx.restore();
+    }
+  }
+
+  drawSprite(ctx, img, x, y, angle, size) {
+    if (!img || !img.complete || !img.naturalWidth) return false;
+    const h = size * (img.naturalHeight / img.naturalWidth);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle + Math.PI / 2);
+    ctx.drawImage(img, -size / 2, -h / 2, size, h);
+    ctx.restore();
+    return true;
+  }
+
+  drawStars(ctx, p, scale) {
     for (const s of this.stars) {
-      const par = 0.15 * s.z;
+      const par = 0.18 * s.z;
       const x = s.x + p.x * par;
       const y = s.y + p.y * par;
-      ctx.globalAlpha = 0.35 + s.a * 0.65;
-      ctx.fillRect(x, y, s.z, s.z);
+      ctx.globalAlpha = 0.4 + s.a * 0.6;
+      const img = this.img.star1;
+      if (img && img.complete && img.naturalWidth && s.z > 1.2) {
+        ctx.drawImage(img, x, y, 4 * s.z, 4 * s.z);
+      } else {
+        ctx.fillStyle = "#e8f0ff";
+        ctx.fillRect(x, y, 1.2 * s.z, 1.2 * s.z);
+      }
     }
     ctx.globalAlpha = 1;
     if (p.hyperOn) {
-      ctx.strokeStyle = "rgba(229,107,255,0.35)";
-      for (let i = 0; i < 18; i++) {
-        const a = p.angle + rand(-0.4, 0.4);
+      ctx.strokeStyle = "rgba(229,107,255,0.45)";
+      ctx.lineWidth = 1.2 / scale;
+      for (let i = 0; i < 22; i++) {
+        const a = p.angle + rand(-0.5, 0.5);
         ctx.beginPath();
-        ctx.moveTo(p.x - Math.cos(a) * 40, p.y - Math.sin(a) * 40);
-        ctx.lineTo(p.x - Math.cos(a) * (180 + zoom * 40), p.y - Math.sin(a) * (180 + zoom * 40));
+        ctx.moveTo(p.x - Math.cos(a) * 18, p.y - Math.sin(a) * 18);
+        ctx.lineTo(p.x - Math.cos(a) * 90, p.y - Math.sin(a) * 90);
         ctx.stroke();
       }
     }
   }
 
+  drawRock(ctx, rock) {
+    const img = this.img[rock.kind];
+    if (!this.drawSprite(ctx, img, rock.x, rock.y, rock.rot, rock.size)) {
+      ctx.fillStyle = "#6a5344";
+      ctx.beginPath();
+      ctx.arc(rock.x, rock.y, rock.size * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  drawShot(ctx, shot) {
+    const ang = Math.atan2(shot.vy, shot.vx);
+    ctx.save();
+    ctx.strokeStyle = shot.color || "#5ce1ff";
+    ctx.shadowColor = shot.color || "#5ce1ff";
+    ctx.shadowBlur = 16;
+    ctx.lineWidth = shot.missile ? 3.2 : 2.4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(shot.x, shot.y);
+    ctx.lineTo(shot.x - shot.vx * 0.14, shot.y - shot.vy * 0.14);
+    ctx.stroke();
+    ctx.restore();
+    const img = this.img[shot.sprite];
+    this.drawSprite(ctx, img, shot.x, shot.y, ang, shot.missile ? 18 : 14);
+  }
+
   drawBody(ctx, body, p) {
-    const g = ctx.createRadialGradient(body.x - body.radius * 0.3, body.y - body.radius * 0.3, 4, body.x, body.y, body.radius);
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    const halo = ctx.createRadialGradient(body.x, body.y, body.radius * 0.7, body.x, body.y, body.radius * 2.1);
+    halo.addColorStop(0, body.color);
+    halo.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(body.x, body.y, body.radius * 2.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    const g = ctx.createRadialGradient(body.x - body.radius * 0.35, body.y - body.radius * 0.35, 3, body.x, body.y, body.radius);
     g.addColorStop(0, body.color);
-    g.addColorStop(1, body.color2);
+    g.addColorStop(0.55, body.color2);
+    g.addColorStop(1, "#07040c");
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(body.x, body.y, body.radius, 0, Math.PI * 2);
@@ -1106,11 +1272,11 @@ export class Game {
       ctx.arc(body.x, body.y, body.radius * 1.8, 0, Math.PI * 2);
       ctx.fill();
     }
-    const labelZoom = sensorZoom(p.power.sensors);
-    if (labelZoom < 3.5 || dist(p.x, p.y, body.x, body.y) < 500) {
+    const close = dist(p.x, p.y, body.x, body.y) < body.radius + 220;
+    if (close) {
       ctx.fillStyle = "#ffc14a";
-      ctx.font = "12px Share Tech Mono, monospace";
-      ctx.fillText(body.name, body.x + body.radius + 6, body.y);
+      ctx.font = "7px Share Tech Mono, monospace";
+      ctx.fillText(body.name, body.x + body.radius + 4, body.y);
     }
   }
 
@@ -1128,35 +1294,47 @@ export class Game {
   }
 
   drawShip(ctx, s, player) {
-    ctx.save();
-    ctx.translate(s.x, s.y);
-    ctx.rotate(s.angle);
-    ctx.fillStyle = player ? "#9be8ff" : s.faction === "ally" ? "#e56bff" : s.hostile ? "#ff5a6a" : "#7dffb0";
-    ctx.beginPath();
-    ctx.moveTo(16, 0);
-    ctx.lineTo(-12, 8);
-    ctx.lineTo(-7, 0);
-    ctx.lineTo(-12, -8);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = "#07060e";
-    ctx.stroke();
+    const spriteKey = player
+      ? "player"
+      : s.sprite || (s.hostile ? "raider" : s.faction === "ally" ? "ally" : "patrol");
+    const size = player ? 38 : s.group === "guns" ? 42 : 34;
+    if (player && s.thrusting) {
+      this.drawSprite(
+        ctx,
+        this.img.flame,
+        s.x - Math.cos(s.angle) * 22,
+        s.y - Math.sin(s.angle) * 22,
+        s.angle + Math.PI,
+        14
+      );
+    }
+    const drawn = this.drawSprite(ctx, this.img[spriteKey], s.x, s.y, s.angle, size);
+    if (!drawn) {
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(s.angle);
+      ctx.fillStyle = player ? "#9be8ff" : s.hostile ? "#ff5a6a" : "#7dffb0";
+      ctx.beginPath();
+      ctx.moveTo(16, 0);
+      ctx.lineTo(-12, 8);
+      ctx.lineTo(-7, 0);
+      ctx.lineTo(-12, -8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
     if (player) {
       const hp = clamp(s.hull / s.maxHull, 0, 1);
       ctx.strokeStyle = hp > 0.5 ? "#5cff9a" : hp > 0.25 ? "#ffc14a" : "#ff5a6a";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(-10, -10, 20, 20);
-      const sh = s.shieldNow || {};
-      ctx.globalAlpha = 0.25;
-      ctx.strokeStyle = "#5ce1ff";
-      if (sh.shieldFore > 1) {
-        ctx.beginPath();
-        ctx.arc(4, 0, 18, -0.8, 0.8);
-        ctx.stroke();
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(s.x - 16, s.y - 16, 32, 32);
+      if ((s.shieldNow?.shieldFore || 0) > 1) {
+        this.drawSprite(ctx, this.img.shield, s.x, s.y, s.angle, 48);
       }
-      ctx.globalAlpha = 1;
+    } else if (s.hostile) {
+      ctx.fillStyle = "rgba(255,90,106,0.85)";
+      ctx.fillRect(s.x - 14, s.y - 24, 28 * clamp(s.hull / s.maxHull, 0, 1), 3);
     }
-    ctx.restore();
   }
 
   drawVignette(ctx) {
