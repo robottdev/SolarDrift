@@ -28,7 +28,9 @@ import {
 } from "/lib/logic.js";
 import { AudioEngine } from "./audio.js";
 import {
+  CALLSIGN,
   DIALOGUE,
+  ENDING,
   INTRO,
   ITEMS,
   MISSIONS,
@@ -36,7 +38,7 @@ import {
   TITLE,
 } from "./data.js";
 
-const SAVE_KEY = "solar-drift-save-v1";
+const SAVE_KEY = "solar-drift-save-v2";
 const SYS_META = [
   ["weapons", "WEAPONS"],
   ["lifeSupport", "LIFE"],
@@ -167,18 +169,34 @@ export class Game {
     this.audio.startPad();
     this.reset(true);
     this.introIndex = 0;
-    document.getElementById("intro-text").textContent = INTRO[0];
+    this.renderIntro();
     this.show("intro");
+  }
+
+  renderIntro() {
+    const card = INTRO[this.introIndex];
+    const who = document.getElementById("intro-who");
+    const text = document.getElementById("intro-text");
+    if (typeof card === "string") {
+      who.textContent = "";
+      who.classList.add("hidden");
+      text.textContent = card;
+      return;
+    }
+    who.classList.remove("hidden");
+    who.textContent = card.who;
+    who.style.color = card.who === "PIP" ? "var(--cyan)" : "var(--amber)";
+    text.textContent = card.text;
   }
 
   advanceIntro() {
     this.introIndex += 1;
     if (this.introIndex >= INTRO.length) {
       this.show("play");
-      this.toast("Hold station. Cloaked contact inbound.");
+      this.toast("PIP: Something just decloaked. If it's Rex, I want first insult.");
       return;
     }
-    document.getElementById("intro-text").textContent = INTRO[this.introIndex];
+    this.renderIntro();
   }
 
   continueSave() {
@@ -189,7 +207,7 @@ export class Game {
       this.audio.resume();
       this.audio.startPad();
       this.show("play");
-      this.toast("Save reconstructed.");
+      this.toast("PIP: Save reconstructed. You still owe me an apology.");
       return true;
     } catch {
       this.toast("Save corrupt.");
@@ -270,7 +288,7 @@ export class Game {
     this.ships = [
       this.makeShip({
         id: "kade",
-        name: "Kade",
+        name: "Honest Rex",
         x: 48,
         y: -70,
         faction: "ally",
@@ -290,7 +308,7 @@ export class Game {
       this.ships.push(
         this.makeShip({
           id: `patrol-${i}`,
-          name: "Authority Patrol",
+          name: "Yard Bouncer",
           x,
           y,
           faction: "gov",
@@ -353,7 +371,7 @@ export class Game {
       this.ships.push(
         this.makeShip({
           id: `smuggler-${i}`,
-          name: "Smuggler",
+          name: "Gutter Dog",
           group: "convoy",
           x: 190 + i * 28,
           y: -80 - i * 16,
@@ -366,7 +384,7 @@ export class Game {
         })
       );
     }
-    this.toast("Convoy transponders lit near Vela Hub.");
+    this.toast("PIP: Gutter Dog transponders just lit near Nix Pawn. Try not to write them a review.");
   }
 
   spawnGunships() {
@@ -375,7 +393,7 @@ export class Game {
       this.ships.push(
         this.makeShip({
           id: `gun-${i}`,
-          name: "Authority Gunship",
+          name: "Repo Gunship",
           group: "guns",
           x: -1460 + i * 30,
           y: 1100 + (i % 2) * 40,
@@ -388,7 +406,7 @@ export class Game {
         })
       );
     }
-    this.toast("Gunships over Depot 9.");
+    this.toast("PIP: Repo gunships over Wrench Camp. Collections, but with lasers.");
   }
 
   handleKey(e) {
@@ -483,7 +501,7 @@ export class Game {
     if (this.mode !== "play") return;
     const target = this.nearestHail();
     if (!target) {
-      this.toast("No comms lock. Close range and retry.");
+      this.openDialogue("pip");
       return;
     }
     this.openDialogue(target.comms);
@@ -528,14 +546,14 @@ export class Game {
     if (body.id === "vortex" && this.hasItem("voidseed") && !this.flags.ejectedVoidseed) {
       this.removeItem("voidseed");
       this.flags.ejectedVoidseed = true;
-      this.toast("Voidseed transported into the aperture. Geometry unlocking.");
+      this.toast("PIP: Juice is in the ring, not in us. Geometry unlocking. I remain unimpressed.");
       this.save();
       return;
     }
     if (body.cargo === "scanner" && !this.flags.hasScanner) {
       this.giveItem("scanner");
       this.flags.hasScanner = true;
-      this.toast("Echo Scanner in the hold. Sensors bite deeper.");
+      this.toast("PIP: Listening dish seated. I can see more than your feelings now.");
       this.save();
       return;
     }
@@ -544,7 +562,7 @@ export class Game {
       this.flags.hasCrystals = true;
       p.reactor += 160;
       p.fuel = 220;
-      this.toast("Flux Crystals seated. Reactor climbing.");
+      this.toast("PIP: Flux Spares seated. Reactor climbing. Still not candy.");
       this.save();
       return;
     }
@@ -565,7 +583,7 @@ export class Game {
 
   toggleHyper() {
     if (!this.hasItem("hyperdrive")) {
-      this.toast("No Hyperdrive Core installed.");
+      this.toast("PIP: No Hyperdrive Core. We can drift with style, or we can install a core.");
       return;
     }
     const hazard = navHazard(this.player.x, this.player.y, PLANETS, this.ships.filter((s) => s !== this));
@@ -583,7 +601,11 @@ export class Game {
     if (!pack) return;
     const idx = this.dialogueStart(id);
     if (idx === -1) {
-      this.toast("No comms handshake. Wrong target, or this channel is closed.");
+      if (id !== "pip") {
+        this.openDialogue("pip");
+        return;
+      }
+      this.toast("PIP: I'm already on this channel, Captain.");
       return;
     }
     this.audio.hail();
@@ -617,6 +639,7 @@ export class Game {
     if (id === "vortex") return this.flags.ejectedVoidseed ? 1 : 0;
     if (id === "vela") return 0;
     if (id === "nyx") return 0;
+    if (id === "pip") return Math.min(nextMissionIndex(f), DIALOGUE.pip.lines.length - 1);
     return 0;
   }
 
@@ -652,8 +675,8 @@ export class Game {
     if (choice.flag) this.flags[choice.flag] = true;
     if (choice.give) {
       this.giveItem(choice.give);
-      if (choice.give === "hyperdrive") this.toast("Hyperdrive Core online. H / F10 when the sky is clear.");
-      if (choice.give === "voidseed") this.toast("Voidseed in the hold. Lira will want a word.");
+      if (choice.give === "hyperdrive") this.toast("PIP: Hyperdrive Core online. H / F10 when the sky is clear and Scott is brave.");
+      if (choice.give === "voidseed") this.toast("PIP: That canister is humming. I am drafting a complaint.");
     }
     if (choice.eject) {
       this.removeItem("voidseed");
@@ -688,8 +711,9 @@ export class Game {
   }
 
   finish() {
-    document.getElementById("ending-text").textContent =
-      "Nyx has a starfix and a war. The Wardens still keep bottles. Episode II would hunt the Controller — but this breakout is yours. The cage wall is open.";
+    document.getElementById("ending-eyebrow").textContent = ENDING.eyebrow;
+    document.getElementById("ending-title").textContent = ENDING.title;
+    document.getElementById("ending-text").textContent = ENDING.text;
     this.show("ending");
     this.audio.setHyper(false);
   }
@@ -776,7 +800,7 @@ export class Game {
     const kade = this.ships.find((s) => s.id === "kade");
     if (kade && kade.cloaked && this.time > 3.2) {
       kade.cloaked = false;
-      this.toast("Contact uncloaked. Hail with C.");
+      this.toast("PIP: That's Rex. Hail with C. I have prepared several insults.");
     }
 
     this.steerPlayer(dt);
@@ -862,7 +886,7 @@ export class Game {
     const d = dist(this.player.x, this.player.y, gate.x, gate.y);
     if (d > gate.radius - 8) return;
     if (gateExplodes(this.flags)) {
-      this.kill("Voidseed mixed with the gate geometry. Both sides of the door went white.");
+      this.kill("PIP: You flew the juice through the ring. Both sides of the door went white. I did warn you in a funny voice.");
       return;
     }
     if (canEnterGate(this.flags) && !this.flags.enteredGate) {
@@ -872,7 +896,7 @@ export class Game {
     } else if (!this.flags.hasVoidseed) {
       this.player.vx *= -1.2;
       this.player.vy *= -1.2;
-      this.toast("GEOMETRY LOCK. The door will not take you yet.");
+      this.toast("PIP: GEOMETRY LOCK. The ring would like a repaired ship, not a vibe.");
     }
   }
 
@@ -967,7 +991,7 @@ export class Game {
     p.hull -= result.hull;
     this.shake = 6;
     this.audio.hit();
-    if (p.hull <= 0) this.kill("Hull integrity zero. The contract ends here.");
+    if (p.hull <= 0) this.kill("PIP: Hull integrity zero. I told you it was mostly opinion.");
   }
 
   destroyShip(s) {
@@ -980,12 +1004,12 @@ export class Game {
     if (s.group === "convoy" && this.ships.filter((x) => x.group === "convoy" && !x.dead).length === 0) {
       this.flags.convoyCleared = true;
       this.giveItem("siphon");
-      this.toast("Convoy down. Energy Siphon recovered. Hale is waiting.");
+      this.toast("PIP: Dogs down. Siphon Hose recovered. Bolt is waiting, and she is not patient.");
       this.save();
     }
     if (s.group === "guns" && this.ships.filter((x) => x.group === "guns" && !x.dead).length === 0) {
       this.flags.rescuedColony = true;
-      this.toast("Gunships down. Hail the colony or the depot.");
+      this.toast("PIP: Repo fleet folded. Hail the Cousins or Wrench Camp. Try gratitude. As a bit.");
       this.save();
     }
   }
@@ -1018,7 +1042,7 @@ export class Game {
     const p = this.player;
     p.hull = clamp(p.hull + repairRate(p.power.lifeSupport) * dt, 0, p.maxHull);
     p.hull -= lifeSupportDrain(p.power.lifeSupport, dt);
-    if (p.hull <= 0) this.kill("Life support starved the hull.");
+    if (p.hull <= 0) this.kill("PIP: Life support starved the hull. Next time, perhaps, allocate the gigawatts.");
     for (const key of ["shieldFore", "shieldAft", "shieldPort", "shieldStarboard"]) {
       const cap = p.power[key];
       if (p.shieldNow[key] < cap) p.shieldNow[key] = Math.min(cap, p.shieldNow[key] + cap * 0.12 * dt);
@@ -1028,7 +1052,6 @@ export class Game {
 
   missionWatch() {
     if (this.flags.hasVoidseed && !this.flags.warnedLira && dist(this.player.x, this.player.y, -90, 70) > 200) {
-      this.flags.warnedLira = true;
       this.openDialogue("lira");
     }
   }
@@ -1389,6 +1412,7 @@ export class Game {
   syncHud() {
     const p = this.player;
     const mission = MISSIONS[nextMissionIndex(this.flags)];
+    document.getElementById("callsign").textContent = CALLSIGN;
     document.getElementById("mission-title").textContent = mission.title;
     document.getElementById("mission-brief").textContent = mission.brief;
     document.getElementById("coords").textContent = `${p.x | 0}, ${p.y | 0}`;

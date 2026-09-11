@@ -1,8 +1,8 @@
 # Solar Drift
 
-A browser remake of the 1993 shareware space opera **Solar Winds** (James Schmalz / Epic MegaGames): top-down flight, directional shields, waveform combat, reactor allocation, cargo, comms, and a hyperdrive jump to the edge of a caged star system.
+A browser remake of the 1993 shareware space opera **Solar Winds** (James Schmalz / Epic MegaGames): top-down flight, directional shields, waveform combat, reactor allocation, cargo, comms, and a hyperdrive jump onto the galactic lanes.
 
-This is an original episode — *The Breakout* — with new writing and art. Gameplay systems follow the original. Not affiliated with Epic Games.
+This is an original episode — *The Setup* — with new writing and art. Gameplay systems follow the original. Not affiliated with Epic Games.
 
 ## Play locally
 
@@ -24,7 +24,7 @@ npm test
 3. Railway detects Node, installs with `npm ci`, and starts `npm start` (`node server.js`).
 4. A `Dockerfile` is included if you prefer image builds (Railway uses it automatically when present).
 5. Under **Settings → Networking**, generate a public domain.
-6. Confirm `/health` returns `"version": "1.1.0"` and a `commit` SHA. If `commit` is missing or old, Railway is not on the latest GitHub `main`.
+6. Confirm `/health` returns `"version": "1.2.0"` and a `commit` SHA. If `commit` is missing or old, Railway is not on the latest GitHub `main`.
 
 Railway **Redeploy** rebuilds the *same old commit*. It does not pull GitHub. After new pushes:
 
@@ -45,20 +45,20 @@ The process **must** listen on `process.env.PORT` (already wired). No other envi
 | 1 2 3 | Laser banks |
 | [ ] | Weapon waveform |
 | ; ' | Shield waveform |
-| C | Hail nearest ship or world |
+| C | Hail nearest ship or world (or PIP, if nobody's close) |
 | V | Scan |
 | T | Transport cargo |
 | H / F10 | Hyperdrive (needs the Core, clear of planets) |
 | + - | Hyperdrive throttle |
 | Esc | Pause / save |
 
-Dump reactor gigawatts into **engines** before a jump. Matched shield/weapon waveforms blunt damage; mismatched waveforms punch through. **Do not** carry Voidseed through the Vortex Gate — transport it into the aperture first.
+Dump reactor gigawatts into **engines** before a jump. Matched shield/weapon waveforms blunt damage; mismatched waveforms punch through. **Do not** carry Jump Juice through the Old Jump Ring — transport it into the aperture first.
 
 ## Campaign
 
-You are bounty hunter Ryn Vale, hired by Governor Hale to crush a forbidden hyperdrive cell. A cloaked informant, a wrecked scanner, a convoy, a moon lab, and a lock in the cage wall tell a different story.
+You are Captain (self-proclaimed) Scott. You and your AI companion PIP were left drifting in a junk system after a "simple salvage job" turned out to be an ambush. Banter, find parts, repair the Maybe, and get back to exploring the galaxy.
 
-Use **Lock Objective** on the nav computer if you lose the plot.
+Use **Lock Objective** on the nav computer if you lose the plot. Hail empty space to talk to PIP.
 
 ## Art
 
