@@ -1,8 +1,10 @@
 # Solar Drift
 
-A browser remake of the 1993 shareware space opera **Solar Winds** (James Schmalz / Epic MegaGames): top-down flight, directional shields, waveform combat, reactor allocation, cargo, comms, and a hyperdrive jump onto the galactic lanes.
+A browser space miner inspired by the 1993 shareware space opera **Solar Winds** (James Schmalz / Epic MegaGames): top-down flight, a linear claim, comms, and a system you can actually work.
 
-This is an original episode — *The Setup* — with new writing and art. Gameplay systems follow the original. Not affiliated with Epic Games.
+This is an original episode — *The Claim*. You cut asteroids with a mining laser, sell ore for **Credits**, and file enough of a book that Helios Anchorage will talk jump cores. Combat loadouts come later. Not affiliated with Epic Games.
+
+Graphics are generated at runtime by [Stellar Sprites](https://github.com/robottdev/StellarSprites).
 
 ## Play locally
 
@@ -17,49 +19,53 @@ Open [http://localhost:3000](http://localhost:3000). Railway and other hosts inj
 npm test
 ```
 
-## Deploy on Railway
-
-1. Push this repo to GitHub.
-2. In [Railway](https://railway.app): **New Project → Deploy from GitHub repo**.
-3. Railway detects Node, installs with `npm ci`, and starts `npm start` (`node server.js`).
-4. A `Dockerfile` is included if you prefer image builds (Railway uses it automatically when present).
-5. Under **Settings → Networking**, generate a public domain.
-6. Confirm `/health` returns `"version": "1.2.0"` and a `commit` SHA. If `commit` is missing or old, Railway is not on the latest GitHub `main`.
-
-Railway **Redeploy** rebuilds the *same old commit*. It does not pull GitHub. After new pushes:
-
-1. Service → **Settings → Source** — repo `robottdev/SolarDrift`, branch **`main`**, autodeploy **on**.
-2. Command Palette (`Ctrl+K` / `Cmd+K`) → **Deploy Latest Commit**.
-3. Hard-refresh the game (`Ctrl+Shift+R`).
-
-The process **must** listen on `process.env.PORT` (already wired). No other environment variables are required.
-
 ## How to fly
 
 | Control | Action |
 | --- | --- |
 | W A S D / arrows | Thrust and rotate |
 | Click space | Plot a course (autopilot) |
-| Space | Lasers |
-| M | Missile |
-| 1 2 3 | Laser banks |
-| [ ] | Weapon waveform |
-| ; ' | Shield waveform |
-| C | Hail nearest ship or world (or PIP, if nobody's close) |
-| V | Scan |
-| T | Transport cargo |
-| H / F10 | Hyperdrive (needs the Core, clear of planets) |
-| + - | Hyperdrive throttle |
+| Shift | Boost |
+| X | Brake |
+| Space (hold) | Mining laser |
+| V | Scan nearest rock |
+| C | Hail Anchorage (or PIP) |
+| T | Sell the hold at dock |
 | Esc | Pause / save |
 
-Dump reactor gigawatts into **engines** before a jump. Matched shield/weapon waveforms blunt damage; mismatched waveforms punch through. **Do not** carry Jump Juice through the Old Jump Ring — transport it into the aperture first.
+The laser is the only hardpoint. It strips the first asteroid in the beam. Scan to assay the vein. Sell at **Helios Anchorage** over Drift.
+
+## Minerals & Credits
+
+Asteroids in the Helios belt carry a posted mineral. The Anchorage pays **Credits (CR)** per tonne at a public board:
+
+**Common** — Water Ice (4), Silicates (3), Carbonaceous (6), Iron (8)
+
+**Uncommon** — Nickel (14), Sulfur (11), Copper (18), Magnesium (16), Aluminum (15), Titanium (32)
+
+**Rare** — Gold (90), Platinum (120), Palladium (110), Iridium (150), Lanthanides (95)
+
+**Exotic** — Helium-3 (220), Aetherite (400, Ghost Vein)
+
+Hold capacity is 24 tonnes. Ice is the tutorial cut. Iron pays the yard. Titanium fights back. Platinum-family ore feeds the assay. The magenta Ghost Vein is the story rock.
 
 ## Campaign
 
-You are Captain (self-proclaimed) Scott. You and your AI companion PIP were left drifting in a junk system after a "simple salvage job" turned out to be an ambush. Banter, find parts, repair the Maybe, and get back to exploring the galaxy.
+You are Captain (self-proclaimed) Scott. PIP is the AI who will not let you mine the station. File the claim, then the lanes.
 
-Use **Lock Objective** on the nav computer if you lose the plot. Hail empty space to talk to PIP.
+Use **Lock Objective** if you lose the plot. Hail empty space to talk to PIP.
+
+## Deploy on Railway
+
+1. Push this repo to GitHub.
+2. In [Railway](https://railway.app): **New Project → Deploy from GitHub repo**.
+3. Railway detects Node, installs with `npm ci`, and starts `npm start` (`node server.js`).
+4. A `Dockerfile` is included if you prefer image builds.
+5. Under **Settings → Networking**, generate a public domain.
+6. Confirm `/health` returns `"version": "2.0.0"`.
+
+The process **must** listen on `process.env.PORT` (already wired). No other environment variables are required.
 
 ## Art
 
-Combat view uses [Kenney Space Shooter Redux](https://kenney.nl/assets/space-shooter-redux) (CC0, via OpenGameArt) for ships, lasers, and asteroids, plus a public-domain [NASA/Hubble](https://www.nasa.gov/nasa-brand-center/images-and-media/) nebula. See `public/assets/ATTRIBUTION.md`.
+Helios (star, Drift, Cinder, Bruise, Nys, moons, belt, Anchorage, hauler) is generated by Stellar Sprites on boot. See `public/assets/ATTRIBUTION.md`.

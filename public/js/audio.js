@@ -3,7 +3,7 @@ export class AudioEngine {
     this.ctx = null;
     this.master = null;
     this.muted = false;
-    this._hyper = null;
+    this._laser = null;
     this._pad = null;
   }
 
@@ -35,36 +35,46 @@ export class AudioEngine {
     osc.stop(t + dur + 0.02);
   }
 
-  laser() {
-    this.beep(880, 0.07, "square", 0.08, -500);
+  startLaser() {
+    if (this.muted || !this.ctx || this._laser) return;
+    const osc = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    const f = this.ctx.createBiquadFilter();
+    osc.type = "sawtooth";
+    osc2.type = "square";
+    osc.frequency.value = 240;
+    osc2.frequency.value = 90;
+    f.type = "bandpass";
+    f.frequency.value = 420;
+    f.Q.value = 2.4;
+    g.gain.value = 0.045;
+    osc.connect(f);
+    osc2.connect(f);
+    f.connect(g);
+    g.connect(this.master);
+    osc.start();
+    osc2.start();
+    this._laser = { osc, osc2, g };
   }
 
-  missile() {
-    this.beep(180, 0.25, "sawtooth", 0.1, -80);
+  stopLaser() {
+    if (!this._laser) return;
+    try {
+      this._laser.osc.stop();
+      this._laser.osc2.stop();
+    } catch {
+      /* already stopped */
+    }
+    this._laser = null;
   }
 
   hit() {
     this.beep(90, 0.18, "square", 0.14, -40);
   }
 
-  explode() {
-    if (this.muted || !this.ctx) return;
-    const t = this.ctx.currentTime;
-    const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.35, this.ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
-    const src = this.ctx.createBufferSource();
-    const g = this.ctx.createGain();
-    const f = this.ctx.createBiquadFilter();
-    f.type = "lowpass";
-    f.frequency.value = 400;
-    src.buffer = buffer;
-    g.gain.setValueAtTime(0.35, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-    src.connect(f);
-    f.connect(g);
-    g.connect(this.master);
-    src.start(t);
+  ping() {
+    this.beep(740, 0.06, "square", 0.06);
   }
 
   hail() {
@@ -74,25 +84,6 @@ export class AudioEngine {
 
   ui() {
     this.beep(440, 0.04, "square", 0.05);
-  }
-
-  setHyper(on) {
-    if (!this.ctx) return;
-    if (on && !this._hyper) {
-      const osc = this.ctx.createOscillator();
-      const g = this.ctx.createGain();
-      osc.type = "sawtooth";
-      osc.frequency.value = 42;
-      g.gain.value = 0.04;
-      osc.connect(g);
-      g.connect(this.master);
-      osc.start();
-      this._hyper = { osc, g };
-    }
-    if (!on && this._hyper) {
-      this._hyper.osc.stop();
-      this._hyper = null;
-    }
   }
 
   startPad() {
@@ -114,7 +105,7 @@ export class AudioEngine {
   }
 
   titleSting() {
-    [220, 277, 330, 440].forEach((f, i) => {
+    [196, 247, 294, 392].forEach((f, i) => {
       setTimeout(() => this.beep(f, 0.18, "square", 0.07), i * 120);
     });
   }

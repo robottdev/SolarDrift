@@ -1,20 +1,11 @@
 # Art credits
 
-Solar Drift uses free, redistributable art.
+Solar Drift generates its solar-system art at runtime from
+[Stellar Sprites](https://github.com/robottdev/StellarSprites)
+(same author). Ships, planets, moons, stations, the star, background,
+and mineral-veined asteroids are procedural sprites — not Kenney or NASA plates.
 
-## Kenney — Space Shooter Redux (CC0)
+Stellar Sprites is a JavaScript port of the original Unity Stellar Sprites
+generator. Copied into `public/js/stellar/` for the Helios claim.
 
-Ships, lasers, meteors, engine flame, shield, star motes, and tiled starfields.
-
-- https://kenney.nl/assets/space-shooter-redux
-- https://opengameart.org/content/space-shooter-redux
-- Credit: Kenney.nl (optional under CC0)
-
-## NASA / Hubble (public domain)
-
-`public/assets/bg/nebula.jpg` is a Hubble / NASA image of the Orion region
-(NASA Goddard archive, public domain in the United States).
-
-NASA media usage: https://www.nasa.gov/nasa-brand-center/images-and-media/
-
-No Epic Games, James Schmalz, or Endless Sky artwork is included.
+Not affiliated with Epic Games or Solar Winds.
