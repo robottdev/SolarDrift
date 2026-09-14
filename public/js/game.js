@@ -304,6 +304,7 @@ export class Game {
     this.station = { ...this.scene.station };
     this.scanTarget = null;
     this.laserHit = null;
+    this.laserVis = 0;
     this.mining = false;
     this.particles = [];
     if (!fresh) this.syncHud();
@@ -522,6 +523,7 @@ export class Game {
     const sec = this.time | 0;
     const prev = (this.time - dt) | 0;
     if (sec !== prev && sec % 2 === 0) this.syncHud();
+    if (this.laserHeld() || this.mining) this.syncHud();
     if (sec !== prev && sec % 20 === 0) this.save();
     this.shake = Math.max(0, this.shake - dt * 8);
   }
@@ -634,11 +636,15 @@ export class Game {
   updateMining(dt) {
     const holding = this.laserHeld();
     this.mining = false;
-    this.laserHit = null;
     if (!holding) {
-      this.audio.stopLaser();
+      this.laserVis = Math.max(0, (this.laserVis || 0) - dt * 3.2);
+      if (this.laserVis <= 0) {
+        this.laserHit = null;
+        this.audio.stopLaser();
+      }
       return;
     }
+    this.laserVis = 1;
     if (this.player.fuel < 0.4) {
       this.audio.stopLaser();
       this.toast("PIP: Flux too thin to cut.");
@@ -867,7 +873,7 @@ export class Game {
   }
 
   drawLaser(ctx) {
-    if (!this.laserHit || !this.laserHeld()) return;
+    if (!this.laserHit || (this.laserVis || 0) <= 0) return;
     const p = this.player;
     const fwd = headingVector(p.heading);
     const ox = p.x + fwd.x * (p.radius * 0.7);
@@ -875,20 +881,29 @@ export class Game {
     const a = this.worldToScreen(ox, oy);
     const b = this.worldToScreen(this.laserHit.x, this.laserHit.y);
     const mineral = this.laserHit.rock ? MINERALS[this.laserHit.rock.mineral] : null;
+    const color = mineral ? mineral.color : "#5ce1ff";
     ctx.save();
-    ctx.strokeStyle = mineral ? mineral.color : "#5ce1ff";
-    ctx.shadowColor = ctx.strokeStyle;
-    ctx.shadowBlur = 12;
-    ctx.lineWidth = this.mining ? 3.2 : 1.6;
+    ctx.globalAlpha = Math.max(0.35, this.laserVis);
+    ctx.strokeStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 22;
+    ctx.lineWidth = this.mining ? 6 : 3.2;
     ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
+    ctx.lineWidth = this.mining ? 2.2 : 1.2;
+    ctx.strokeStyle = "#ffffff";
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
     if (this.mining) {
-      ctx.fillStyle = mineral.color;
+      ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+      ctx.arc(b.x, b.y, 7, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
