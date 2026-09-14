@@ -278,6 +278,28 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
     y: drift.y + Math.sin(station.phase) * station.orbitRadius,
   };
 
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2;
+    const rad = 70 + (i % 3) * 22;
+    const ice = MINERALS.ice;
+    rocks.push({
+      id: `local-ice-${i}`,
+      mineral: "ice",
+      x: spawn.x + 64 + Math.cos(ang) * rad,
+      y: spawn.y + 18 + Math.sin(ang) * rad,
+      heading: ang,
+      spin: (i % 2 ? 0.35 : -0.28),
+      baseRadius: 13 + (i % 3),
+      radius: 13 + (i % 3),
+      reserve: 8 + i * 0.4,
+      maxReserve: 8 + i * 0.4,
+      hardness: ice.hardness,
+      spriteIndex: mineralSprites.ice,
+      story: false,
+      gone: false,
+    });
+  }
+
   const npcs = [
     {
       name: "Hauler 11",

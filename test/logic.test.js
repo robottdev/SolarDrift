@@ -13,6 +13,7 @@ import {
   headingVector,
   mineTick,
   mulberry32,
+  nearestMiningTarget,
   nearestRayHit,
   nextMissionIndex,
   pickMineralId,
@@ -76,6 +77,15 @@ test("seeded belt rolls stay off exotic unless allowed", () => {
   assert.equal(ids.includes("aetherite"), false);
   assert.equal(ids.includes("helium3"), false);
   assert.ok(ids.includes("ice") || ids.includes("iron") || ids.includes("silicate"));
+});
+
+test("mining laser cone still grabs an off-axis rock", () => {
+  const rocks = [{ x: 18, y: -40, radius: 10, reserve: 4, gone: false }];
+  const miss = nearestRayHit(0, 0, 0, 150, rocks);
+  assert.equal(miss, null);
+  const hit = nearestMiningTarget(0, 0, 0, 150, rocks);
+  assert.ok(hit);
+  assert.equal(hit.index, 0);
 });
 
 test("mining laser ray hits the nearest rock in the beam", () => {

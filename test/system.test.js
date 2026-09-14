@@ -9,7 +9,7 @@ test("Helios system generates a belt, station, and Ghost Vein", () => {
   assert.equal(scene.planets.length, 4);
   assert.ok(scene.planets.find((p) => p.id === "drift"));
   assert.equal(scene.station.name, "Helios Anchorage");
-  assert.ok(scene.rocks.length >= 40);
+  assert.ok(scene.rocks.length >= 48);
   const ghost = scene.rocks.find((r) => r.story);
   assert.ok(ghost);
   assert.equal(ghost.mineral, "aetherite");

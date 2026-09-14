@@ -17,7 +17,7 @@ import {
   headingVector,
   mineTick,
   moonWorldPos,
-  nearestRayHit,
+  nearestMiningTarget,
   nextMissionIndex,
   rockVisualRadius,
   sellAll,
@@ -60,6 +60,7 @@ export class Game {
     this.last = 0;
     this.zoom = 0.92;
     this.prices = stationPrices(1);
+    this.cutHeld = false;
     this.bind();
     this.refreshContinue();
     this.loop = this.loop.bind(this);
@@ -73,13 +74,18 @@ export class Game {
     window.addEventListener("keydown", (e) => {
       this.keys.add(e.key);
       this.keys.add(e.code);
-      if ([" ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) e.preventDefault();
+      if ([" ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key) || e.code === "Space") {
+        e.preventDefault();
+      }
       if (this.mode === "play") this.handleKey(e);
     });
     window.addEventListener("keyup", (e) => {
       this.keys.delete(e.key);
       this.keys.delete(e.code);
-      if (e.key === " " || e.code === "Space") this.audio.stopLaser();
+      if (e.key === " " || e.code === "Space") {
+        this.cutHeld = false;
+        this.audio.stopLaser();
+      }
     });
     this.view.addEventListener("mousedown", (e) => {
       if (this.mode !== "play" || !this.player) return;
@@ -118,6 +124,22 @@ export class Game {
         this.toast(`Course plotted: ${x}, ${y}`);
       }
     };
+    const cut = document.getElementById("btn-cut");
+    if (cut) {
+      const down = (e) => {
+        e.preventDefault();
+        this.cutHeld = true;
+        this.audio.resume();
+      };
+      const up = () => {
+        this.cutHeld = false;
+        this.audio.stopLaser();
+      };
+      cut.addEventListener("pointerdown", down);
+      cut.addEventListener("pointerup", up);
+      cut.addEventListener("pointercancel", up);
+      cut.addEventListener("lostpointercapture", up);
+    }
   }
 
   generateWorld() {
@@ -199,7 +221,11 @@ export class Game {
       document.getElementById("game").classList.remove("hidden");
     }
     this.mode = mode === "game" ? "play" : mode;
-    if (mode === "play") this.resize();
+    if (mode === "play") {
+      this.resize();
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      this.view.focus();
+    }
   }
 
   startNew() {
@@ -602,7 +628,7 @@ export class Game {
   }
 
   laserHeld() {
-    return this.keys.has(" ") || this.keys.has("Space");
+    return this.cutHeld || this.keys.has(" ") || this.keys.has("Space") || this.keys.has("Spacebar");
   }
 
   updateMining(dt) {
@@ -624,7 +650,7 @@ export class Game {
     const fwd = headingVector(p.heading);
     const originX = p.x + fwd.x * (p.radius * 0.7);
     const originY = p.y + fwd.y * (p.radius * 0.7);
-    const hit = nearestRayHit(originX, originY, p.heading, LASER_RANGE, this.rocks);
+    const hit = nearestMiningTarget(originX, originY, p.heading, LASER_RANGE, this.rocks);
     this.laserHit = hit || {
       x: originX + fwd.x * LASER_RANGE,
       y: originY + fwd.y * LASER_RANGE,

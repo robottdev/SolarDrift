@@ -55,7 +55,7 @@
         <ul class="help">
           <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows — thrust / rotate · click space to plot a course</li>
           <li><kbd>Shift</kbd> boost · <kbd>X</kbd> brake · scroll to zoom</li>
-          <li><kbd>Space</kbd> mining laser (hold). Beam cuts the first asteroid in front of you</li>
+          <li><kbd>Space</kbd> or hold <kbd>CUT</kbd> — mining laser. Beam grabs the nearest rock in front of you</li>
           <li><kbd>V</kbd> scan nearest rock · <kbd>C</kbd> hail station or PIP</li>
           <li><kbd>T</kbd> sell the hold at Helios Anchorage (must be in dock range)</li>
           <li>Currency is <strong>Credits (CR)</strong>. The Anchorage pays posted rates per tonne</li>
@@ -81,7 +81,7 @@
     </section>
 
     <div id="game" class="hidden">
-      <canvas id="view"></canvas>
+      <canvas id="view" tabindex="0"></canvas>
       <aside id="console">
         <header class="console-head">
           <span id="callsign">SCOTT · PIP</span>
@@ -128,6 +128,7 @@
           <button data-act="hail">COMMS</button>
           <button data-act="scan">SCAN</button>
           <button data-act="sell">SELL</button>
+          <button id="btn-cut" type="button">CUT</button>
           <button data-act="pause">II</button>
         </section>
       </aside>

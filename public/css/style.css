@@ -363,9 +363,9 @@ kbd {
   gap: 4px;
 }
 
-.seg button.active {
-  background: var(--cyan);
-  color: #061018;
+#btn-cut {
+  border-color: var(--amber);
+  color: var(--amber);
 }
 
 #ending .panel-card,
