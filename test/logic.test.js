@@ -1,79 +1,115 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  DEFAULT_POWER,
-  WAVEFORMS,
-  allocatedTotal,
-  canEnterGate,
-  facingShieldKey,
-  gateExplodes,
-  hyperdriveDrain,
-  hyperdriveSpeed,
-  laserDamage,
-  navHazard,
+  CARGO_CAPACITY,
+  MINERALS,
+  MINERAL_IDS,
+  PGM_IDS,
+  applyMine,
+  applySale,
+  cargoMass,
+  cargoSpace,
+  formatCredits,
+  headingVector,
+  mineTick,
+  mulberry32,
+  nearestRayHit,
   nextMissionIndex,
-  cameraScale,
-  sensorZoom,
-  setSystemPower,
-  shieldAbsorb,
-  unallocated,
-  waveformMultiplier,
+  pickMineralId,
+  rayCircleHit,
+  saleValue,
+  sellAll,
+  stationPrices,
 } from "../lib/logic.js";
 
-test("power allocation never exceeds reactor", () => {
-  const reactor = 220;
-  let power = { ...DEFAULT_POWER };
-  power = setSystemPower(reactor, power, "engines", 400);
-  assert.equal(allocatedTotal(power) <= reactor, true);
-  assert.equal(unallocated(reactor, power) >= 0, true);
+test("mineral catalog covers common through exotic asteroid ore", () => {
+  const rarities = new Set(MINERAL_IDS.map((id) => MINERALS[id].rarity));
+  assert.equal(MINERAL_IDS.length >= 16, true);
+  assert.ok(rarities.has("common"));
+  assert.ok(rarities.has("uncommon"));
+  assert.ok(rarities.has("rare"));
+  assert.ok(rarities.has("exotic"));
+  assert.equal(MINERALS.ice.value < MINERALS.iron.value, true);
+  assert.equal(MINERALS.iron.value < MINERALS.titanium.value, true);
+  assert.equal(MINERALS.titanium.value < MINERALS.platinum.value, true);
+  assert.equal(MINERALS.aetherite.value > MINERALS.helium3.value, true);
+  for (const id of MINERAL_IDS) {
+    const m = MINERALS[id];
+    assert.ok(m.value >= 1);
+    assert.ok(m.hardness > 0);
+    assert.equal(m.color.startsWith("#"), true);
+    assert.equal(m.rgb.length, 3);
+  }
 });
 
-test("matched waveforms blunt laser damage", () => {
-  assert.equal(waveformMultiplier("sine", "sine"), 0.32);
-  assert.equal(waveformMultiplier("sine", "saw"), 1);
-  const matched = laserDamage(80, 2, "square", "square");
-  const mismatched = laserDamage(80, 2, "square", "saw");
-  assert.equal(matched < mismatched, true);
+test("Credits are an integer book at posted tonnes", () => {
+  const prices = stationPrices(1);
+  assert.equal(prices.ice, 4);
+  assert.equal(prices.aetherite, 400);
+  assert.equal(saleValue("iron", 12, prices), 96);
+  const { credits, sold, cargo } = sellAll({ ice: 8, iron: 2.4 }, prices);
+  assert.equal(credits, 32 + 19);
+  assert.equal(sold.ice, 8);
+  assert.deepEqual(cargo, {});
+  assert.equal(formatCredits(1234), "CR 1,234");
 });
 
-test("directional shields pick the struck facing", () => {
-  assert.equal(facingShieldKey(0, 0), "shieldFore");
-  assert.equal(facingShieldKey(0, Math.PI), "shieldAft");
-  assert.equal(facingShieldKey(0, Math.PI / 2), "shieldStarboard");
-  assert.equal(facingShieldKey(0, -Math.PI / 2), "shieldPort");
+test("hold mass cannot exceed capacity while mining", () => {
+  const rock = { mineral: "ice", reserve: 40, hardness: 0.48 };
+  let cargo = { ice: CARGO_CAPACITY - 0.2 };
+  assert.ok(cargoMass(cargo) < CARGO_CAPACITY);
+  const result = mineTick(rock, 5, cargo, CARGO_CAPACITY, 10);
+  assert.equal(result.full || cargoMass(result.cargo) <= CARGO_CAPACITY + 1e-6, true);
+  assert.ok(cargoSpace(result.cargo) < 0.21);
 });
 
-test("shields absorb part of a hit", () => {
-  const result = shieldAbsorb(40, 20);
-  assert.equal(result.hull < 20, true);
-  assert.equal(result.absorbed > 0, true);
+test("mining rate falls as hardness rises", () => {
+  const ice = mineTick({ mineral: "ice", reserve: 20, hardness: MINERALS.ice.hardness }, 1, {});
+  const tit = mineTick({ mineral: "titanium", reserve: 20, hardness: MINERALS.titanium.hardness }, 1, {});
+  assert.ok(ice.extracted > tit.extracted);
+  assert.equal(ice.mineral, "ice");
 });
 
-test("hyperdrive scales with engine throttle", () => {
-  assert.equal(hyperdriveSpeed(200, 200) > hyperdriveSpeed(40, 40), true);
-  assert.equal(hyperdriveDrain(200, 1) > hyperdriveDrain(20, 1), true);
+test("seeded belt rolls stay off exotic unless allowed", () => {
+  const rand = mulberry32(1993);
+  const ids = Array.from({ length: 80 }, () => pickMineralId(rand, { allowExotic: false }));
+  assert.equal(ids.includes("aetherite"), false);
+  assert.equal(ids.includes("helium3"), false);
+  assert.ok(ids.includes("ice") || ids.includes("iron") || ids.includes("silicate"));
 });
 
-test("sensors zoom out as power rises", () => {
-  assert.equal(sensorZoom(0) < sensorZoom(120), true);
-  assert.ok(cameraScale(30) > 2.5, "combat camera stays zoomed in");
-  assert.ok(cameraScale(0) > cameraScale(120));
+test("mining laser ray hits the nearest rock in the beam", () => {
+  const { x, y } = headingVector(0);
+  assert.ok(Math.abs(x) < 1e-9);
+  assert.ok(Math.abs(y + 1) < 1e-9);
+  const hit = rayCircleHit(0, 0, 0, -1, 100, 0, -40, 8);
+  assert.ok(hit);
+  assert.ok(hit.t < 40);
+  const rocks = [
+    { x: 0, y: -80, radius: 10, reserve: 4, gone: false },
+    { x: 0, y: -30, radius: 8, reserve: 4, gone: false },
+  ];
+  const nearest = nearestRayHit(0, 0, 0, 96, rocks);
+  assert.equal(nearest.index, 1);
 });
 
-test("nav hazard blocks hyperdrive near planets", () => {
-  const hazard = navHazard(0, 0, [{ x: 10, y: 0, radius: 40, name: "Helios" }], []);
-  assert.equal(hazard, "Helios");
-  const clear = navHazard(800, 800, [{ x: 10, y: 0, radius: 40, name: "Helios" }], []);
-  assert.equal(clear, null);
-});
-
-test("campaign gating for the vortex", () => {
-  assert.equal(canEnterGate({ hasVoidseed: true, ejectedVoidseed: true }), true);
-  assert.equal(gateExplodes({ hasVoidseed: true, ejectedVoidseed: false }), true);
+test("sale flags advance the linear claim", () => {
   assert.equal(nextMissionIndex({}), 0);
-  assert.equal(nextMissionIndex({ talkedKade: true, hasScanner: true }), 2);
-});
-
-test("waveform table has three combat profiles", () => {
-  assert.deepEqual(WAVEFORMS, ["sine", "square", "saw"]);
+  assert.equal(nextMissionIndex({ minedIce: 8 }), 1);
+  let flags = applyMine({}, "ice", 8);
+  flags = applySale(flags, { ice: 8 }, 32);
+  assert.equal(nextMissionIndex(flags), 2);
+  flags = applySale(flags, { iron: 12 }, 96);
+  assert.equal(nextMissionIndex(flags), 3);
+  flags = { ...flags, lifetimeCredits: 250 };
+  assert.equal(nextMissionIndex(flags), 4);
+  flags = applyMine(flags, "titanium", 6);
+  assert.equal(nextMissionIndex(flags), 5);
+  flags = applySale(flags, { platinum: 4 }, 480);
+  assert.ok(PGM_IDS.includes("platinum"));
+  assert.equal(nextMissionIndex(flags), 6);
+  flags = applyMine(flags, "aetherite", 2);
+  assert.equal(nextMissionIndex(flags), 7);
+  flags.briefedCore = true;
+  assert.equal(nextMissionIndex(flags), 8);
 });

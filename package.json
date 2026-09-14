@@ -1,8 +1,8 @@
 {
   "name": "solar-drift",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Solar Drift — Captain Scott and PIP repair a damaged ship after a setup. Inspired by Solar Winds (1993). Runs on Railway.",
+  "description": "Solar Drift — top-down space miner. Cut asteroids, sell Credits, file a claim. Inspired by Solar Winds (1993). Graphics from Stellar Sprites.",
   "type": "module",
   "main": "server.js",
   "scripts": {

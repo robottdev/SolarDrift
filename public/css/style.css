@@ -220,6 +220,13 @@ kbd {
   text-transform: uppercase;
 }
 
+.panel-card h3 {
+  color: var(--amber);
+  letter-spacing: 0.12em;
+  font-size: 13px;
+  margin: 16px 0 8px;
+}
+
 #radar {
   width: 100%;
   max-width: 200px;
@@ -270,6 +277,30 @@ kbd {
   padding: 0;
   color: var(--green);
   font-size: 12px;
+}
+
+.cargo li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+
+.cargo li i {
+  width: 8px;
+  height: 8px;
+  display: inline-block;
+  border-radius: 1px;
+}
+
+.cargo li b {
+  margin-left: auto;
+  color: var(--ink);
+}
+
+.cargo li span {
+  color: var(--dim);
+  font-size: 10px;
 }
 
 .actions button {
