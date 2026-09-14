@@ -810,7 +810,7 @@ export class Game {
     }
     if (this.player.nav) this.drawNav(ctx);
     this.drawLaser(ctx);
-    this.drawSprite(ctx, this.scene.player.spriteIndex, this.player.x, this.player.y, this.player.radius, this.player.heading, false);
+    this.drawSprite(ctx, this.scene.player.spriteIndex, this.player.x, this.player.y, this.player.radius * 1.45, this.player.heading, false);
     for (const q of this.particles) {
       ctx.globalAlpha = clamp(q.life * 2, 0, 1);
       ctx.fillStyle = q.color;
@@ -827,14 +827,15 @@ export class Game {
   drawBackground(ctx) {
     const bg = this.sprites[this.scene.background.spriteIndex];
     if (!bg) return;
-    const tw = bg.width;
-    const th = bg.height;
-    const ox = Math.round(((this.player.x * 0.035) % tw + tw) % tw);
-    const oy = Math.round(((this.player.y * 0.035) % th + th) % th);
+    const scale = 5;
+    const tw = bg.width * scale;
+    const th = bg.height * scale;
+    const ox = Math.round(((this.player.x * 0.04) % tw + tw) % tw);
+    const oy = Math.round(((this.player.y * 0.04) % th + th) % th);
     ctx.save();
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
     for (let y = -oy; y < this.h; y += th) {
-      for (let x = -ox; x < this.w; x += tw) ctx.drawImage(bg, x, y);
+      for (let x = -ox; x < this.w; x += tw) ctx.drawImage(bg, x, y, tw, th);
     }
     ctx.restore();
   }
