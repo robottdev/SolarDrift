@@ -1,0 +1,89 @@
+import test from "node:test";
+import { generateSprite } from "../public/stellar/js/generate.js";
+import { Color } from "../public/stellar/js/core.js";
+
+function assert(cond, msg) {
+  if (!cond) throw new Error(msg);
+}
+
+function coverage(pixels) {
+  let opaque = 0;
+  for (let i = 3; i < pixels.length; i += 4) if (pixels[i] > 8) opaque++;
+  return opaque / (pixels.length / 4);
+}
+
+const jobs = [
+  ["ship-interceptor", "ship", { seed: 42, shipType: 0, bodyDetail: 0.01, wingDetail: 0.08, colors: [Color.grey, Color.red], colorDetail: 0.06 }],
+  ["ship-gunship", "ship", { seed: 88, shipType: 1, bodyDetail: 0.04, wingDetail: 0.06, colors: [new Color(0.5, 0.52, 0.55), new Color(0.2, 0.55, 0.85)], colorDetail: 0.05 }],
+  ["ship-hauler", "ship", { seed: 21, shipType: 2, bodyDetail: 0.05, wingDetail: 0.04, colors: [new Color(0.45, 0.48, 0.5), new Color(0.85, 0.45, 0.1)], colorDetail: 0.04 }],
+  ["ship-carrier", "ship", { seed: 7, shipType: 3, bodyDetail: 0.03, wingDetail: 0.05, colors: [new Color(0.55, 0.58, 0.62), new Color(0.95, 0.4, 0.12)], colorDetail: 0.05 }],
+  ["planet", "planet", { seed: 7, size: 64, colors: [Color.blue, Color.green, Color.red], planetType: 1, oceans: true, clouds: true, cloudDensity: 0.4, cloudTransparency: 0.4, atmosphere: true, city: true, cityDensity: 0.92, lightAngle: 180 }],
+  ["planet-gas", "planet", { seed: 19, size: 64, colors: [Color.yellow, Color.red, Color.white], planetType: 0, oceans: false, clouds: false, cloudDensity: 0.5, cloudTransparency: 0.5, atmosphere: false, city: false, cityDensity: 0.95, lightAngle: 180 }],
+  ["sun", "sun", { seed: 3, size: 64, mainColor: Color.yellow }],
+  ["moon", "moon", { seed: 9, size: 64, roughness: 0.6, colors: [new Color(0.4, 0.4, 0.4), new Color(0.63, 0.63, 0.63), new Color(0.75, 0.75, 0.75)], lightAngle: 200 }],
+  ["asteroid", "asteroid", { seed: 11, size: 64, colors: [new Color(0.4, 0.4, 0.4), new Color(0.63, 0.63, 0.63), new Color(0.75, 0.75, 0.75)], minerals: true, mineralColor: Color.yellow, lightAngle: 180 }],
+  ["station", "station", { seed: 13, colors: [Color.grey, Color.cyan], colorDetail: 0.02, numberOfPods: 6 }],
+  ["blackhole", "blackhole", { seed: 1 }],
+  ["background", "background", { seed: 21, size: 64, frequency: 0.04, lacunarity: 2, persistence: 0.5, octaves: 4, starCount: 40, tint: Color.blue, brightness: 0.6 }],
+  ["scene", "scene", { seed: 3, planetCount: 3, beltChance: 1, station: true, blackHole: false, quality: 0, starColor: Color.yellow }],
+];
+
+test("Stellar Sprites generators paint non-empty sprites", () => {
+  for (const [name, type, params] of jobs) {
+  const t0 = Date.now();
+  const result = generateSprite(type, params);
+  const dt = Date.now() - t0;
+  const cov = coverage(result.pixels);
+  console.log(`${name}: ${result.width}x${result.height} coverage=${cov.toFixed(3)} ${dt}ms`);
+  assert(result.width > 0 && result.height > 0, name + " empty size");
+  assert(cov > 0.01, name + " looks empty");
+  if (type === "sun") {
+    const w = result.width;
+    const h = result.height;
+    const px = result.pixels;
+    const alpha = (x, y) => px[(y * w + x) * 4 + 3];
+    const corner = Math.max(alpha(0, 0), alpha(w - 1, 0), alpha(0, h - 1), alpha(w - 1, h - 1));
+    assert(corner < 12, name + " corona clips at canvas corner: " + corner);
+  }
+  if (type === "background") {
+    const w = result.width;
+    const h = result.height;
+    const px = result.pixels;
+    const jump = (xa, ya, xb, yb) => {
+      const ia = (ya * w + xa) * 4;
+      const ib = (yb * w + xb) * 4;
+      return Math.abs(px[ia] - px[ib]) + Math.abs(px[ia + 1] - px[ib + 1]) + Math.abs(px[ia + 2] - px[ib + 2]);
+    };
+    let wrap = 0;
+    for (let y = 0; y < h; y++) wrap += jump(0, y, w - 1, y);
+    for (let x = 0; x < w; x++) wrap += jump(x, 0, x, h - 1);
+    wrap /= (h + w);
+    let neighbor = 0;
+    let n = 0;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w - 1; x++) {
+        neighbor += jump(x, y, x + 1, y);
+        n++;
+      }
+    }
+    neighbor /= n;
+    assert(wrap <= neighbor * 6 + 24, name + " tiles with a visible seam: wrap=" + wrap.toFixed(1) + " neighbor=" + neighbor.toFixed(1));
+  }
+  if (type === "scene") {
+    assert(result.scene && result.scene.planets.length >= 3, "scene missing planets");
+    assert(result.scene.sprites.length > 4, "scene missing sprites");
+    assert(result.scene.sun && result.scene.player, "scene missing star or ship");
+    assert(result.scene.sun.diskRatio > 0 && result.scene.sun.diskRatio < 0.4, "sun disk ratio should leave corona room");
+    assert(result.scene.belt && result.scene.belt.rocks.length, "scene missing belt at 100% chance");
+    for (const p of result.scene.planets) {
+      assert(Number.isFinite(p.x) && Number.isFinite(p.y), "planet missing fixed position");
+      assert(p.orbitRadius == null, "planet should not use solar orbits");
+      for (const m of p.moons) {
+        assert(m.orbitRadius > 0 && m.orbitSpeed > 0, "moon missing local orbit");
+      }
+    }
+    const emptyBelt = generateSprite("scene", { seed: 3, planetCount: 3, beltChance: 0, station: true, blackHole: false, quality: 0, starColor: Color.yellow });
+    assert(!emptyBelt.scene.belt, "belt chance 0 still spawned a belt");
+  }
+  }
+});

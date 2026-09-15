@@ -36,8 +36,11 @@ test("index and game modules are served", async () => {
   assert.equal(logic.status, 200);
   const game = await fetch(`http://127.0.0.1:${port}/js/game.js`);
   assert.equal(game.status, 200);
-  const stellar = await fetch(`http://127.0.0.1:${port}/js/stellar/celestial.js`);
+  const stellar = await fetch(`http://127.0.0.1:${port}/stellar/js/celestial.js`);
   assert.equal(stellar.status, 200);
+  const lab = await fetch(`http://127.0.0.1:${port}/stellar/`);
+  assert.equal(lab.status, 200);
+  assert.match(await lab.text(), /Stellar Sprites/);
   server.close();
 });
 

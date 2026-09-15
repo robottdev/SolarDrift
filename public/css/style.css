@@ -135,10 +135,27 @@ button.primary {
 }
 
 button.ghost,
+a.ghost,
 button:disabled {
   border-color: var(--dim);
   color: var(--dim);
   background: transparent;
+}
+
+.title-actions a.ghost {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  border: 1px solid var(--dim);
+  padding: 8px 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: inherit;
+}
+
+.title-actions a.ghost:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
 }
 
 button:disabled {

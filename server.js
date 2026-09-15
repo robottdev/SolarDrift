@@ -44,6 +44,10 @@ export function createApp() {
   app.use("/lib", express.static(path.join(__dirname, "lib"), staticOpts));
   app.use(express.static(path.join(__dirname, "public"), staticOpts));
 
+  app.get("/stellar", (_req, res) => {
+    res.redirect(302, "/stellar/");
+  });
+
   app.use((req, res) => {
     if (req.method !== "GET" && req.method !== "HEAD") {
       res.status(405).end();
