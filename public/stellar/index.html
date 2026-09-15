@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+  <title>Stellar Sprites</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <div>
+          <h1>Stellar Sprites</h1>
+          <p>Solar Drift sprite lab · edit generators here</p>
+        </div>
+      </div>
+      <div class="actions">
+        <a class="ghost-link" href="/">Back to game</a>
+        <button id="btn-generate" type="button" class="primary">Generate</button>
+        <button id="btn-fly" type="button" hidden>Test Mode</button>
+        <button id="btn-save" type="button">Save PNG</button>
+      </div>
+    </header>
+
+    <aside class="nav-col">
+      <p class="nav-label">Generators</p>
+      <div id="type-nav" class="type-nav"></div>
+    </aside>
+
+    <section class="controls-col">
+      <p class="nav-label">Properties</p>
+      <div id="controls" class="controls"></div>
+    </section>
+
+    <main class="preview-col">
+      <div class="preview-frame">
+        <div id="generating" class="generating" hidden>Generating…</div>
+        <div class="checker">
+          <canvas id="sprite-canvas" width="64" height="64"></canvas>
+        </div>
+      </div>
+      <div class="preview-footer">
+        <span id="preview-meta">No sprite yet</span>
+        <span id="status"></span>
+      </div>
+    </main>
+  </div>
+  <div id="fly-mode" class="fly-mode" hidden>
+    <canvas id="fly-canvas" tabindex="0"></canvas>
+    <div class="fly-hud">
+      <div class="fly-hint">WASD or on-screen stick · Shift/Boost · Space/Brake · pinch to zoom · Esc exit</div>
+      <div id="fly-readout" class="fly-readout">Test Mode</div>
+    </div>
+    <canvas id="fly-minimap" width="168" height="168"></canvas>
+    <button id="btn-fly-exit" type="button">Exit Test Mode</button>
+    <div id="fly-pad" class="fly-pad">
+      <div id="fly-stick" class="fly-stick" role="presentation" aria-label="Flight stick">
+        <div id="fly-stick-knob" class="fly-stick-knob"></div>
+      </div>
+      <div class="fly-buttons">
+        <button id="fly-boost" type="button">Boost</button>
+        <button id="fly-thrust" type="button">Thrust</button>
+        <button id="fly-brake" type="button">Brake</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

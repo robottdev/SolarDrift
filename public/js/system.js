@@ -1,6 +1,6 @@
-import { Color } from "./stellar/core.js";
-import { generatePlanet, generateSun, generateMoon, generateAsteroid, generateBackground, PlanetType } from "./stellar/celestial.js";
-import { generateShip, generateStation } from "./stellar/craft.js";
+import { Color } from "../stellar/js/core.js";
+import { generatePlanet, generateSun, generateMoon, generateAsteroid, generateBackground, PlanetType } from "../stellar/js/celestial.js";
+import { generateShip, generateStation } from "../stellar/js/craft.js";
 import {
   HELIOS_SEED,
   MINERALS,

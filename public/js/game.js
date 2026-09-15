@@ -827,15 +827,14 @@ export class Game {
   drawBackground(ctx) {
     const bg = this.sprites[this.scene.background.spriteIndex];
     if (!bg) return;
-    const scale = 5;
-    const tw = bg.width * scale;
-    const th = bg.height * scale;
-    const ox = Math.round(((this.player.x * 0.04) % tw + tw) % tw);
-    const oy = Math.round(((this.player.y * 0.04) % th + th) % th);
+    const tw = bg.width;
+    const th = bg.height;
+    const ox = Math.round(((this.player.x * 0.035) % tw + tw) % tw);
+    const oy = Math.round(((this.player.y * 0.035) % th + th) % th);
     ctx.save();
-    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingEnabled = false;
     for (let y = -oy; y < this.h; y += th) {
-      for (let x = -ox; x < this.w; x += tw) ctx.drawImage(bg, x, y, tw, th);
+      for (let x = -ox; x < this.w; x += tw) ctx.drawImage(bg, x, y);
     }
     ctx.restore();
   }

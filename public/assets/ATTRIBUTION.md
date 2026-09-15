@@ -1,11 +1,11 @@
 # Art credits
 
-Solar Drift generates its solar-system art at runtime from
-[Stellar Sprites](https://github.com/robottdev/StellarSprites)
-(same author). Ships, planets, moons, stations, the star, background,
-and mineral-veined asteroids are procedural sprites — not Kenney or NASA plates.
+Solar Drift generates its solar-system art at runtime with **Stellar Sprites**,
+now kept in this repo at `public/stellar/`. Ships, planets, moons, stations,
+the star, background, and mineral-veined asteroids are procedural sprites.
 
-Stellar Sprites is a JavaScript port of the original Unity Stellar Sprites
-generator. Copied into `public/js/stellar/` for the Helios claim.
+Edit the generators in `public/stellar/js/` (celestial, craft, ship, lighting).
+The in-game Helios system (`public/js/system.js`) imports those same files.
+Open `/stellar/` locally to preview sprites without flying the claim.
 
 Not affiliated with Epic Games or Solar Winds.
