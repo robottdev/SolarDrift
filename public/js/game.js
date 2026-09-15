@@ -19,6 +19,7 @@ import {
   moonWorldPos,
   nearestMiningTarget,
   nextMissionIndex,
+  rockVisualDrawSize,
   rockVisualRadius,
   sellAll,
   shortestAngle,
@@ -29,7 +30,7 @@ import {
 import { AudioEngine } from "./audio.js";
 import { CALLSIGN, DIALOGUE, ENDING, INTRO, MISSIONS, TITLE } from "./data.js";
 
-const SAVE_KEY = "solar-drift-save-v3";
+const SAVE_KEY = "solar-drift-save-v4";
 
 function canvasFromSprite(sprite) {
   const c = document.createElement("canvas");
@@ -58,7 +59,7 @@ export class Game {
     this.dialogue = null;
     this.mode = "title";
     this.last = 0;
-    this.zoom = 0.92;
+    this.zoom = 1;
     this.prices = stationPrices(1);
     this.cutHeld = false;
     this.bind();
@@ -99,7 +100,7 @@ export class Game {
       (e) => {
         if (this.mode !== "play") return;
         e.preventDefault();
-        this.zoom = clamp(this.zoom * (e.deltaY > 0 ? 0.9 : 1.1), 0.35, 2.2);
+        this.zoom = clamp(this.zoom * (e.deltaY > 0 ? 0.9 : 1.1), 0.28, 1);
       },
       { passive: false }
     );
@@ -155,7 +156,7 @@ export class Game {
       const timer = setTimeout(() => {
         worker.terminate();
         fail(new Error("timeout"));
-      }, 45000);
+      }, 90000);
       worker.onmessage = (ev) => {
         clearTimeout(timer);
         worker.terminate();
@@ -296,6 +297,7 @@ export class Game {
       cargo: {},
       nav: null,
       radius: spawn.radius,
+      drawSize: spawn.drawSize,
       thrusting: false,
     };
     this.planets = this.scene.planets.map((p) => ({ ...p, moons: p.moons.map((m) => ({ ...m })) }));
@@ -381,7 +383,7 @@ export class Game {
   scan() {
     const p = this.player;
     let best = null;
-    let bestD = 220;
+    let bestD = 400;
     for (const rock of this.rocks) {
       if (rock.gone) continue;
       const d = dist(p.x, p.y, rock.x, rock.y) - rock.radius;
@@ -543,7 +545,7 @@ export class Game {
     }
 
     const boost = this.keys.has("Shift") || this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
-    const accel = (boost ? 210 : 110) * dt;
+    const accel = (boost ? 260 : 140) * dt;
     const fwd = headingVector(p.heading);
     const thrusting =
       this.keys.has("w") || this.keys.has("W") || this.keys.has("ArrowUp") || Boolean(p.nav);
@@ -564,7 +566,7 @@ export class Game {
     }
     p.vx *= Math.exp(-0.32 * dt);
     p.vy *= Math.exp(-0.32 * dt);
-    const cap = boost ? 160 : 92;
+    const cap = boost ? 200 : 120;
     const sp = Math.hypot(p.vx, p.vy);
     if (sp > cap) {
       p.vx *= cap / sp;
@@ -620,6 +622,7 @@ export class Game {
       if (r.gone) continue;
       r.heading += r.spin * dt;
       r.radius = rockVisualRadius(r);
+      r.drawSize = rockVisualDrawSize(r);
     }
     for (const n of this.npcs) {
       n.heading += Math.sin(this.time * 0.3 + n.speed * 0.01) * 0.35 * dt;
@@ -728,6 +731,7 @@ export class Game {
     this.flags = data.flags || {};
     Object.assign(this.player, data.player);
     this.player.cargo = data.player?.cargo || {};
+    if (!this.player.drawSize) this.player.drawSize = this.scene.player.drawSize;
     this.time = data.time || 0;
     if (Array.isArray(data.rocks)) {
       const byId = new Map(data.rocks.map((r) => [r.id, r]));
@@ -737,6 +741,7 @@ export class Game {
         rock.reserve = saved.reserve;
         rock.gone = saved.gone;
         rock.radius = rockVisualRadius(rock);
+        rock.drawSize = rockVisualDrawSize(rock);
       }
     }
     this.syncHud();
@@ -791,26 +796,26 @@ export class Game {
 
     this.drawBackground(ctx);
     this.drawSunGlow(ctx);
-    this.drawSprite(ctx, this.scene.sun.spriteIndex, 0, 0, this.scene.sun.radius, 0, false, true);
+    this.drawSprite(ctx, this.scene.sun.spriteIndex, 0, 0, this.scene.sun.drawSize, 0, false);
     for (const rock of this.rocks) {
       if (rock.gone) continue;
-      this.drawSprite(ctx, rock.spriteIndex, rock.x, rock.y, rock.radius, rock.heading, false);
+      this.drawSprite(ctx, rock.spriteIndex, rock.x, rock.y, rock.drawSize, rock.heading, false);
     }
     for (const planet of this.planets) {
-      this.drawSprite(ctx, planet.spriteIndex, planet.x, planet.y, planet.radius, 0, true);
+      this.drawSprite(ctx, planet.spriteIndex, planet.x, planet.y, planet.drawSize, 0, true);
       for (const moon of planet.moons) {
         const mp = moonWorldPos(planet, moon);
-        this.drawSprite(ctx, moon.spriteIndex, mp.x, mp.y, moon.radius, 0, true);
+        this.drawSprite(ctx, moon.spriteIndex, mp.x, mp.y, moon.drawSize, 0, true);
       }
     }
     const sp = this.stationPos();
-    this.drawSprite(ctx, this.station.spriteIndex, sp.x, sp.y, this.station.radius, this.station.phase, false);
+    this.drawSprite(ctx, this.station.spriteIndex, sp.x, sp.y, this.station.drawSize, this.station.phase, false);
     for (const n of this.npcs) {
-      this.drawSprite(ctx, n.spriteIndex, n.x, n.y, n.radius, n.heading, false);
+      this.drawSprite(ctx, n.spriteIndex, n.x, n.y, n.drawSize, n.heading, false);
     }
     if (this.player.nav) this.drawNav(ctx);
     this.drawLaser(ctx);
-    this.drawSprite(ctx, this.scene.player.spriteIndex, this.player.x, this.player.y, this.player.radius * 1.45, this.player.heading, false);
+    this.drawSprite(ctx, this.scene.player.spriteIndex, this.player.x, this.player.y, this.player.drawSize, this.player.heading, false);
     for (const q of this.particles) {
       ctx.globalAlpha = clamp(q.life * 2, 0, 1);
       ctx.fillStyle = q.color;
@@ -841,10 +846,10 @@ export class Game {
 
   drawSunGlow(ctx) {
     const s = this.worldToScreen(0, 0);
-    const glowR = this.scene.sun.radius * 2.4 * this.zoom;
+    const glowR = (this.scene.sun.drawSize * 0.55) * this.zoom;
     const glow = ctx.createRadialGradient(s.x, s.y, glowR * 0.18, s.x, s.y, glowR);
-    glow.addColorStop(0, "rgba(255, 230, 170, 0.28)");
-    glow.addColorStop(0.45, "rgba(255, 180, 80, 0.1)");
+    glow.addColorStop(0, "rgba(255, 230, 170, 0.22)");
+    glow.addColorStop(0.45, "rgba(255, 180, 80, 0.08)");
     glow.addColorStop(1, "rgba(255, 140, 40, 0)");
     ctx.fillStyle = glow;
     ctx.beginPath();
@@ -852,22 +857,21 @@ export class Game {
     ctx.fill();
   }
 
-  drawSprite(ctx, spriteIndex, x, y, radius, rotation, lightFromSun, clipCircle) {
+  drawSprite(ctx, spriteIndex, x, y, drawSize, rotation, lightFromSun) {
     const img = this.sprites[spriteIndex];
     if (!img) return;
     const p = this.worldToScreen(x, y);
-    const size = Math.max(6, radius * 2 * this.zoom);
+    const native = Math.min(img.width, img.height);
+    const target = Math.max(6, (drawSize || native) * this.zoom);
+    const size = Math.min(target, native);
     ctx.save();
     ctx.translate(p.x, p.y);
     let rot = rotation || 0;
     if (lightFromSun) rot = Math.atan2(y, x);
     ctx.rotate(rot);
-    if (clipCircle) {
-      ctx.beginPath();
-      ctx.arc(0, 0, size * 0.48, 0, Math.PI * 2);
-      ctx.clip();
-    }
-    ctx.imageSmoothingEnabled = this.zoom < 1.4;
+    const downscaling = size + 0.5 < native;
+    ctx.imageSmoothingEnabled = downscaling;
+    if (downscaling) ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, -size / 2, -size / 2, size, size);
     ctx.restore();
   }
@@ -930,7 +934,7 @@ export class Game {
   drawLabels(ctx) {
     ctx.font = "12px Share Tech Mono, monospace";
     const maybe = (name, x, y, r, color) => {
-      if (dist(this.player.x, this.player.y, x, y) > r + 280) return;
+      if (dist(this.player.x, this.player.y, x, y) > r + 500) return;
       const s = this.worldToScreen(x, y);
       ctx.fillStyle = color;
       ctx.fillText(name, s.x + r * this.zoom + 6, s.y);
@@ -973,7 +977,7 @@ export class Game {
     rtx.beginPath();
     rtx.arc(w / 2, h / 2, 90, 0, Math.PI * 2);
     rtx.stroke();
-    const scale = 0.055;
+    const scale = 0.032;
     const plot = (x, y, color, size = 3) => {
       rtx.fillStyle = color;
       rtx.fillRect(w / 2 + (x - this.player.x) * scale - size / 2, h / 2 + (y - this.player.y) * scale - size / 2, size, size);
@@ -984,7 +988,7 @@ export class Game {
     plot(s.x, s.y, "#5ce1ff", 4);
     for (const r of this.rocks) {
       if (r.gone) continue;
-      if (dist(this.player.x, this.player.y, r.x, r.y) > 900) continue;
+      if (dist(this.player.x, this.player.y, r.x, r.y) > 1800) continue;
       plot(r.x, r.y, r.story ? "#e56bff" : MINERALS[r.mineral].color, r.story ? 4 : 2);
     }
     plot(this.player.x, this.player.y, "#ffffff", 4);
