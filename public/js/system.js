@@ -1,5 +1,5 @@
 import { Color } from "../stellar/js/core.js";
-import { generatePlanet, generateSun, generateMoon, generateAsteroid, generateBackground, PlanetType } from "../stellar/js/celestial.js";
+import { generatePlanet, generateSun, generateMoon, generateAsteroid, generateBackground, PlanetType, SUN_DISK_RATIO } from "../stellar/js/celestial.js";
 import { generateShip, generateStation } from "../stellar/js/craft.js";
 import {
   HELIOS_SEED,
@@ -25,44 +25,56 @@ function rockPalette(shade) {
   ];
 }
 
+/** Native texture sizes. Sprites are drawn at this size × zoom, never upscaled. */
+const TEX = {
+  sun: 512,
+  terrestrial: 256,
+  gas: 320,
+  moon: 160,
+  asteroid: 128,
+  background: 512,
+};
+
+const PLANET_DISK = 0.42;
+const ASTEROID_DISK = 0.4;
+const SHIP_DRAW = 48;
+const STATION_DRAW = 160;
+
 const PLANET_SPECS = [
   {
     id: "cinder",
     name: "Cinder",
     kind: "terrestrial",
-    dist: 860,
+    dist: 1500,
     ang: 0.55,
-    radius: 44,
     seed: 1101,
     colors: [
       new Color(0.62, 0.28, 0.16, 1),
       new Color(0.78, 0.42, 0.18, 1),
       new Color(0.35, 0.2, 0.14, 1),
     ],
-    moons: [{ name: "Cinder-b", seed: 1110, radius: 12, orbitRadius: 78, orbitSpeed: 0.55, phase: 1.2 }],
+    moons: [{ name: "Cinder-b", seed: 1110, orbitRadius: 248, orbitSpeed: 0.55, phase: 1.2 }],
   },
   {
     id: "drift",
     name: "Drift",
     kind: "terrestrial",
-    dist: 1520,
+    dist: 2700,
     ang: 2.15,
-    radius: 58,
     seed: 2202,
     colors: [
       new Color(0.18, 0.38, 0.72, 1),
       new Color(0.22, 0.55, 0.32, 1),
       new Color(0.7, 0.62, 0.4, 1),
     ],
-    moons: [{ name: "Parking Rock", seed: 2210, radius: 14, orbitRadius: 102, orbitSpeed: 0.42, phase: 4.1 }],
+    moons: [{ name: "Parking Rock", seed: 2210, orbitRadius: 270, orbitSpeed: 0.42, phase: 4.1 }],
   },
   {
     id: "bruise",
     name: "Bruise",
     kind: "gas",
-    dist: 2760,
+    dist: 4900,
     ang: 4.05,
-    radius: 122,
     seed: 3303,
     colors: [
       new Color(0.55, 0.28, 0.72, 1),
@@ -70,17 +82,16 @@ const PLANET_SPECS = [
       new Color(0.95, 0.82, 0.55, 1),
     ],
     moons: [
-      { name: "Bruise-b", seed: 3310, radius: 16, orbitRadius: 188, orbitSpeed: 0.32, phase: 0.4 },
-      { name: "Bruise-c", seed: 3320, radius: 11, orbitRadius: 248, orbitSpeed: 0.24, phase: 2.7 },
+      { name: "Bruise-b", seed: 3310, orbitRadius: 300, orbitSpeed: 0.32, phase: 0.4 },
+      { name: "Bruise-c", seed: 3320, orbitRadius: 400, orbitSpeed: 0.24, phase: 2.7 },
     ],
   },
   {
     id: "nys",
     name: "Nys",
     kind: "terrestrial",
-    dist: 3640,
+    dist: 6400,
     ang: 5.35,
-    radius: 50,
     seed: 4404,
     colors: [
       new Color(0.55, 0.78, 0.9, 1),
@@ -104,30 +115,32 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
   const lightAngle = 180;
   const sun = {
     name: "Helios",
-    spriteIndex: push(generateSun({ seed, size: 96, mainColor: starColor })),
-    radius: 220,
+    spriteIndex: push(generateSun({ seed, size: TEX.sun, mainColor: starColor })),
+    drawSize: TEX.sun,
+    radius: TEX.sun * SUN_DISK_RATIO,
     color: { r: starColor.r, g: starColor.g, b: starColor.b },
   };
 
   const bgTex = generateBackground({
     seed: seed + 19,
-    width: 256,
-    height: 256,
+    width: TEX.background,
+    height: TEX.background,
     frequency: 0.02,
     lacunarity: 2.1,
     persistence: 0.48,
     octaves: 4,
-    starCount: 90,
+    starCount: 180,
     tint: new Color(0.18, 0.22, 0.48, 1),
     brightness: 0.44,
   });
-  const background = { spriteIndex: push(bgTex), width: 256, height: 256 };
+  const background = { spriteIndex: push(bgTex), width: TEX.background, height: TEX.background };
 
   const planets = PLANET_SPECS.map((spec) => {
     const terrestrial = spec.kind === "terrestrial";
+    const texSize = terrestrial ? TEX.terrestrial : TEX.gas;
     const tex = generatePlanet({
       seed: spec.seed,
-      size: 80,
+      size: texSize,
       colors: spec.colors,
       planetType: terrestrial ? PlanetType.Terrestrial : PlanetType.Gas_Giant,
       oceans: terrestrial,
@@ -143,7 +156,7 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
     const moons = spec.moons.map((m) => {
       const mTex = generateMoon({
         seed: m.seed,
-        size: 40,
+        size: TEX.moon,
         roughness: 0.45 + rand() * 0.3,
         colors: [
           new Color(0.4, 0.4, 0.4),
@@ -152,13 +165,19 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
         ],
         lightAngle,
       });
-      return { ...m, spriteIndex: push(mTex) };
+      return {
+        ...m,
+        spriteIndex: push(mTex),
+        drawSize: TEX.moon,
+        radius: TEX.moon * PLANET_DISK,
+      };
     });
     return {
       id: spec.id,
       name: spec.name,
       kind: spec.kind,
-      radius: spec.radius,
+      drawSize: texSize,
+      radius: texSize * PLANET_DISK,
       x: Math.cos(spec.ang) * spec.dist,
       y: Math.sin(spec.ang) * spec.dist,
       spriteIndex: push(tex),
@@ -172,7 +191,7 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
     const shade = (id.charCodeAt(0) % 5) * 0.02;
     const tex = generateAsteroid({
       seed: seed + 800 + id.length * 17 + id.charCodeAt(0) * 13,
-      size: 64,
+      size: TEX.asteroid,
       colors: rockPalette(shade),
       minerals: true,
       mineralColor: colorFromRgb(spec.rgb),
@@ -181,8 +200,8 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
     mineralSprites[id] = push(tex);
   }
 
-  const beltInner = 1880;
-  const beltOuter = 2480;
+  const beltInner = 3300;
+  const beltOuter = 4400;
   const rocks = [];
   const rockCount = 54;
   for (let i = 0; i < rockCount; i++) {
@@ -191,7 +210,8 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
     const spec = MINERALS[mineral];
     const rad = beltInner + rand() * (beltOuter - beltInner);
     const ang = rand() * Math.PI * 2;
-    const baseRadius = 11 + rand() * 10;
+    const drawSize = TEX.asteroid * (0.78 + rand() * 0.22);
+    const baseRadius = drawSize * ASTEROID_DISK;
     const reserve = 6 + rand() * 16 + (spec.rarity === "rare" ? 4 : 0);
     rocks.push({
       id: `rock-${i}`,
@@ -200,6 +220,8 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
       y: Math.sin(ang) * rad,
       heading: rand() * Math.PI * 2,
       spin: (rand() - 0.5) * 0.7,
+      baseDrawSize: drawSize,
+      drawSize,
       baseRadius,
       radius: baseRadius,
       reserve,
@@ -212,8 +234,9 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
   }
 
   const ghostAng = 5.05;
-  const ghostRad = 2410;
+  const ghostRad = 4280;
   const aether = MINERALS.aetherite;
+  const ghostDraw = TEX.asteroid;
   rocks.push({
     id: "ghost-vein",
     mineral: "aetherite",
@@ -221,8 +244,10 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
     y: Math.sin(ghostAng) * ghostRad,
     heading: 0.2,
     spin: 0.18,
-    baseRadius: 22,
-    radius: 22,
+    baseDrawSize: ghostDraw,
+    drawSize: ghostDraw,
+    baseRadius: ghostDraw * ASTEROID_DISK,
+    radius: ghostDraw * ASTEROID_DISK,
     reserve: 5.5,
     maxReserve: 5.5,
     hardness: aether.hardness,
@@ -241,9 +266,10 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
   const station = {
     name: "Helios Anchorage",
     spriteIndex: push(stationTex),
-    radius: 30,
+    drawSize: STATION_DRAW,
+    radius: STATION_DRAW * 0.5,
     parent: planets.indexOf(drift),
-    orbitRadius: drift.radius * 2.35,
+    orbitRadius: drift.radius + STATION_DRAW * 0.5 + 90,
     orbitSpeed: 0.22,
     phase: 1.15,
   };
@@ -280,17 +306,20 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
 
   for (let i = 0; i < 8; i++) {
     const ang = (i / 8) * Math.PI * 2;
-    const rad = 70 + (i % 3) * 22;
+    const rad = 160 + (i % 3) * 55;
     const ice = MINERALS.ice;
+    const drawSize = TEX.asteroid * (0.82 + (i % 3) * 0.06);
     rocks.push({
       id: `local-ice-${i}`,
       mineral: "ice",
-      x: spawn.x + 64 + Math.cos(ang) * rad,
-      y: spawn.y + 18 + Math.sin(ang) * rad,
+      x: spawn.x + 110 + Math.cos(ang) * rad,
+      y: spawn.y + 30 + Math.sin(ang) * rad,
       heading: ang,
       spin: (i % 2 ? 0.35 : -0.28),
-      baseRadius: 13 + (i % 3),
-      radius: 13 + (i % 3),
+      baseDrawSize: drawSize,
+      drawSize,
+      baseRadius: drawSize * ASTEROID_DISK,
+      radius: drawSize * ASTEROID_DISK,
       reserve: 8 + i * 0.4,
       maxReserve: 8 + i * 0.4,
       hardness: ice.hardness,
@@ -304,25 +333,27 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
     {
       name: "Hauler 11",
       spriteIndex: push(npcA),
+      drawSize: 52,
       radius: 20,
-      x: drift.x + 140,
-      y: drift.y - 80,
+      x: drift.x + 240,
+      y: drift.y - 140,
       heading: 0.4,
       speed: 22,
     },
     {
       name: "Patrol 4",
       spriteIndex: push(npcB),
-      radius: 18,
-      x: planets[0].x + 90,
-      y: planets[0].y + 40,
+      drawSize: 44,
+      radius: 16,
+      x: planets[0].x + 160,
+      y: planets[0].y + 70,
       heading: 2.1,
       speed: 28,
     },
   ];
 
-  let worldRadius = sun.radius + 400;
-  for (const p of planets) worldRadius = Math.max(worldRadius, Math.hypot(p.x, p.y) + p.radius + 280);
+  let worldRadius = sun.drawSize * 0.5 + 500;
+  for (const p of planets) worldRadius = Math.max(worldRadius, Math.hypot(p.x, p.y) + p.drawSize * 0.5 + 400);
 
   return {
     seed,
@@ -336,9 +367,10 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
     npcs,
     player: {
       spriteIndex: push(playerShip.texture),
-      radius: 22,
-      x: spawn.x + 64,
-      y: spawn.y + 18,
+      drawSize: SHIP_DRAW,
+      radius: 18,
+      x: spawn.x + 110,
+      y: spawn.y + 30,
       heading: 0.15,
     },
     sprites,
