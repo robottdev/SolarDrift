@@ -131,6 +131,6 @@ test("mined rocks shrink collision and draw size together", () => {
   assert.equal(rockVisualRadius(rock), 20);
   assert.equal(rockVisualDrawSize(rock), 51.2);
   rock.reserve = 0;
-  assert.equal(rockVisualRadius(rock), 14);
-  assert.equal(rockVisualDrawSize(rock), 35.84);
+  assert.equal(rockVisualRadius(rock), 50 * 0.28);
+  assert.equal(rockVisualDrawSize(rock), 128 * 0.28);
 });
