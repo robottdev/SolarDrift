@@ -18,6 +18,8 @@ import {
   nextMissionIndex,
   pickMineralId,
   rayCircleHit,
+  rockVisualDrawSize,
+  rockVisualRadius,
   saleValue,
   sellAll,
   stationPrices,
@@ -122,4 +124,13 @@ test("sale flags advance the linear claim", () => {
   assert.equal(nextMissionIndex(flags), 7);
   flags.briefedCore = true;
   assert.equal(nextMissionIndex(flags), 8);
+});
+
+test("mined rocks shrink collision and draw size together", () => {
+  const rock = { baseRadius: 50, baseDrawSize: 128, reserve: 4, maxReserve: 10 };
+  assert.equal(rockVisualRadius(rock), 20);
+  assert.equal(rockVisualDrawSize(rock), 51.2);
+  rock.reserve = 0;
+  assert.equal(rockVisualRadius(rock), 14);
+  assert.equal(rockVisualDrawSize(rock), 35.84);
 });
