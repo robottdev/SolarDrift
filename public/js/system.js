@@ -2,11 +2,14 @@ import { Color } from "../stellar/js/core.js";
 import { generatePlanet, generateSun, generateMoon, generateAsteroid, generateBackground, PlanetType, SUN_DISK_RATIO } from "../stellar/js/celestial.js";
 import { generateShip, generateStation } from "../stellar/js/craft.js";
 import {
+  BODY_GAP,
   HELIOS_SEED,
   MINERALS,
   MINERAL_IDS,
   mulberry32,
   pickMineralId,
+  placeClearOf,
+  spriteRadius,
 } from "../../lib/logic.js";
 
 function packTexture(tex) {
@@ -53,7 +56,7 @@ const PLANET_SPECS = [
       new Color(0.78, 0.42, 0.18, 1),
       new Color(0.35, 0.2, 0.14, 1),
     ],
-    moons: [{ name: "Cinder-b", seed: 1110, orbitRadius: 248, orbitSpeed: 0.55, phase: 1.2 }],
+    moons: [{ name: "Cinder-b", seed: 1110, orbitSpeed: 0.55, phase: 1.2 }],
   },
   {
     id: "drift",
@@ -67,7 +70,7 @@ const PLANET_SPECS = [
       new Color(0.22, 0.55, 0.32, 1),
       new Color(0.7, 0.62, 0.4, 1),
     ],
-    moons: [{ name: "Parking Rock", seed: 2210, orbitRadius: 270, orbitSpeed: 0.42, phase: 4.1 }],
+    moons: [{ name: "Parking Rock", seed: 2210, orbitSpeed: 0.42, phase: 4.1 }],
   },
   {
     id: "bruise",
@@ -82,8 +85,8 @@ const PLANET_SPECS = [
       new Color(0.95, 0.82, 0.55, 1),
     ],
     moons: [
-      { name: "Bruise-b", seed: 3310, orbitRadius: 300, orbitSpeed: 0.32, phase: 0.4 },
-      { name: "Bruise-c", seed: 3320, orbitRadius: 400, orbitSpeed: 0.24, phase: 2.7 },
+      { name: "Bruise-b", seed: 3310, orbitSpeed: 0.32, phase: 0.4 },
+      { name: "Bruise-c", seed: 3320, orbitSpeed: 0.24, phase: 2.7 },
     ],
   },
   {
@@ -153,6 +156,9 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
       lightAngle,
       oceanColor: spec.colors[0],
     });
+    const moonVis = TEX.moon * 0.5;
+    const planetVis = texSize * 0.5;
+    let nextOrbit = planetVis + moonVis + BODY_GAP;
     const moons = spec.moons.map((m) => {
       const mTex = generateMoon({
         seed: m.seed,
@@ -165,8 +171,11 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
         ],
         lightAngle,
       });
+      const orbitRadius = nextOrbit;
+      nextOrbit += moonVis * 2 + BODY_GAP;
       return {
         ...m,
+        orbitRadius,
         spriteIndex: push(mTex),
         drawSize: TEX.moon,
         radius: TEX.moon * PLANET_DISK,
@@ -200,48 +209,99 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
     mineralSprites[id] = push(tex);
   }
 
+  const drift = planets.find((p) => p.id === "drift") || planets[1];
+  const stationTex = generateStation({
+    seed: seed + 50,
+    colors: [new Color(0.55, 0.58, 0.62, 1), new Color(0.35, 0.78, 0.92, 1)],
+    colorDetail: 0.04,
+    numberOfPods: 7,
+  }).texture;
+  const stationVis = STATION_DRAW * 0.5;
+  const outerMoon = drift.moons.reduce((best, m) => (!best || m.orbitRadius > best.orbitRadius ? m : best), null);
+  const stationOrbit = Math.max(
+    spriteRadius(drift) + stationVis + BODY_GAP,
+    outerMoon ? outerMoon.orbitRadius + spriteRadius(outerMoon) + stationVis + BODY_GAP : 0
+  );
+  const station = {
+    name: "Helios Anchorage",
+    spriteIndex: push(stationTex),
+    drawSize: STATION_DRAW,
+    radius: stationVis,
+    parent: planets.indexOf(drift),
+    orbitRadius: stationOrbit,
+    orbitSpeed: 0.22,
+    phase: 1.15,
+  };
+
+  const occupancy = [{ id: "sun", x: 0, y: 0, r: spriteRadius(sun) }];
+  for (const p of planets) {
+    occupancy.push({ id: p.id, x: p.x, y: p.y, r: spriteRadius(p) });
+    for (const m of p.moons) {
+      occupancy.push({ id: m.name, x: p.x, y: p.y, r: spriteRadius(m), orbit: m.orbitRadius });
+    }
+  }
+  occupancy.push({
+    id: "station",
+    x: drift.x,
+    y: drift.y,
+    r: spriteRadius(station),
+    orbit: station.orbitRadius,
+  });
+
   const beltInner = 3300;
   const beltOuter = 4400;
   const rocks = [];
   const rockCount = 54;
+
+  function commitRock(rock) {
+    rocks.push(rock);
+    occupancy.push({ id: rock.id, x: rock.x, y: rock.y, r: spriteRadius(rock) });
+  }
+
+  function tryPlaceRock(partial, pick, tries = 160) {
+    const pos = placeClearOf(rand, spriteRadius(partial), occupancy, pick, tries);
+    if (!pos) return false;
+    commitRock({ ...partial, x: pos.x, y: pos.y });
+    return true;
+  }
+
   for (let i = 0; i < rockCount; i++) {
     const outer = i / rockCount > 0.72;
     const mineral = pickMineralId(rand, { allowExotic: outer && rand() < 0.12 });
     const spec = MINERALS[mineral];
-    const rad = beltInner + rand() * (beltOuter - beltInner);
-    const ang = rand() * Math.PI * 2;
     const drawSize = TEX.asteroid * (0.78 + rand() * 0.22);
     const baseRadius = drawSize * ASTEROID_DISK;
     const reserve = 6 + rand() * 16 + (spec.rarity === "rare" ? 4 : 0);
-    rocks.push({
-      id: `rock-${i}`,
-      mineral,
-      x: Math.cos(ang) * rad,
-      y: Math.sin(ang) * rad,
-      heading: rand() * Math.PI * 2,
-      spin: (rand() - 0.5) * 0.7,
-      baseDrawSize: drawSize,
-      drawSize,
-      baseRadius,
-      radius: baseRadius,
-      reserve,
-      maxReserve: reserve,
-      hardness: spec.hardness,
-      spriteIndex: mineralSprites[mineral],
-      story: false,
-      gone: false,
-    });
+    tryPlaceRock(
+      {
+        id: `rock-${i}`,
+        mineral,
+        heading: rand() * Math.PI * 2,
+        spin: (rand() - 0.5) * 0.7,
+        baseDrawSize: drawSize,
+        drawSize,
+        baseRadius,
+        radius: baseRadius,
+        reserve,
+        maxReserve: reserve,
+        hardness: spec.hardness,
+        spriteIndex: mineralSprites[mineral],
+        story: false,
+        gone: false,
+      },
+      () => {
+        const rad = beltInner + rand() * (beltOuter - beltInner);
+        const ang = rand() * Math.PI * 2;
+        return { x: Math.cos(ang) * rad, y: Math.sin(ang) * rad };
+      }
+    );
   }
 
-  const ghostAng = 5.05;
-  const ghostRad = 4280;
   const aether = MINERALS.aetherite;
   const ghostDraw = TEX.asteroid;
-  rocks.push({
+  const ghostPartial = {
     id: "ghost-vein",
     mineral: "aetherite",
-    x: Math.cos(ghostAng) * ghostRad,
-    y: Math.sin(ghostAng) * ghostRad,
     heading: 0.2,
     spin: 0.18,
     baseDrawSize: ghostDraw,
@@ -254,25 +314,26 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
     spriteIndex: mineralSprites.aetherite,
     story: true,
     gone: false,
-  });
-
-  const drift = planets.find((p) => p.id === "drift") || planets[1];
-  const stationTex = generateStation({
-    seed: seed + 50,
-    colors: [new Color(0.55, 0.58, 0.62, 1), new Color(0.35, 0.78, 0.92, 1)],
-    colorDetail: 0.04,
-    numberOfPods: 7,
-  }).texture;
-  const station = {
-    name: "Helios Anchorage",
-    spriteIndex: push(stationTex),
-    drawSize: STATION_DRAW,
-    radius: STATION_DRAW * 0.5,
-    parent: planets.indexOf(drift),
-    orbitRadius: drift.radius + STATION_DRAW * 0.5 + 90,
-    orbitSpeed: 0.22,
-    phase: 1.15,
   };
+  const ghostAng = 5.05;
+  const ghostRad = 4280;
+  const ghostPlaced = tryPlaceRock(
+    ghostPartial,
+    (r, i) => {
+      if (i === 0) return { x: Math.cos(ghostAng) * ghostRad, y: Math.sin(ghostAng) * ghostRad };
+      const rad = beltInner + r() * (beltOuter + 800 - beltInner);
+      const ang = r() * Math.PI * 2;
+      return { x: Math.cos(ang) * rad, y: Math.sin(ang) * rad };
+    },
+    320
+  );
+  if (!ghostPlaced) {
+    tryPlaceRock(ghostPartial, (r) => {
+      const ang = r() * Math.PI * 2;
+      const rad = 5200 + r() * 400;
+      return { x: Math.cos(ang) * rad, y: Math.sin(ang) * rad };
+    }, 80);
+  }
 
   const playerShip = generateShip({
     seed: seed + 1,
@@ -299,22 +360,20 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
     colorDetail: 0.07,
   }).texture;
 
-  const spawn = {
-    x: drift.x + Math.cos(station.phase) * station.orbitRadius,
-    y: drift.y + Math.sin(station.phase) * station.orbitRadius,
+  const iceHeading = station.phase;
+  const iceFieldDist = station.orbitRadius + spriteRadius(station) + BODY_GAP + 260;
+  const iceCenter = {
+    x: drift.x + Math.cos(iceHeading) * iceFieldDist,
+    y: drift.y + Math.sin(iceHeading) * iceFieldDist,
   };
 
   for (let i = 0; i < 8; i++) {
-    const ang = (i / 8) * Math.PI * 2;
-    const rad = 160 + (i % 3) * 55;
     const ice = MINERALS.ice;
     const drawSize = TEX.asteroid * (0.82 + (i % 3) * 0.06);
-    rocks.push({
+    const partial = {
       id: `local-ice-${i}`,
       mineral: "ice",
-      x: spawn.x + 110 + Math.cos(ang) * rad,
-      y: spawn.y + 30 + Math.sin(ang) * rad,
-      heading: ang,
+      heading: (i / 8) * Math.PI * 2,
       spin: (i % 2 ? 0.35 : -0.28),
       baseDrawSize: drawSize,
       drawSize,
@@ -326,30 +385,63 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
       spriteIndex: mineralSprites.ice,
       story: false,
       gone: false,
-    });
+    };
+    tryPlaceRock(partial, (r) => {
+      const ang = r() * Math.PI * 2;
+      const rad = 70 + r() * 140;
+      return { x: iceCenter.x + Math.cos(ang) * rad, y: iceCenter.y + Math.sin(ang) * rad };
+    }, 200);
+  }
+
+  const spawn = placeClearOf(
+    rand,
+    18,
+    occupancy,
+    (r) => {
+      const ang = r() * Math.PI * 2;
+      const rad = 30 + r() * 110;
+      return { x: iceCenter.x + Math.cos(ang) * rad, y: iceCenter.y + Math.sin(ang) * rad };
+    },
+    100,
+    12
+  ) || iceCenter;
+  occupancy.push({ id: "spawn", x: spawn.x, y: spawn.y, r: 18 });
+
+  function placeNpc(name, spriteIndex, drawSize, radius, near) {
+    const halo = occupancy
+      .filter((b) => Math.hypot(b.x - near.x, b.y - near.y) < 1)
+      .reduce((m, b) => Math.max(m, (b.orbit || 0) + b.r), spriteRadius(near));
+    const pos =
+      placeClearOf(
+        rand,
+        drawSize * 0.5,
+        occupancy,
+        (r) => {
+          const ang = r() * Math.PI * 2;
+          const rad = halo + BODY_GAP + 40 + r() * 220;
+          return { x: near.x + Math.cos(ang) * rad, y: near.y + Math.sin(ang) * rad };
+        },
+        80
+      ) || {
+        x: near.x + halo + BODY_GAP + 80,
+        y: near.y,
+      };
+    occupancy.push({ id: name, x: pos.x, y: pos.y, r: drawSize * 0.5 });
+    return {
+      name,
+      spriteIndex,
+      drawSize,
+      radius,
+      x: pos.x,
+      y: pos.y,
+      heading: rand() * Math.PI * 2,
+      speed: name.startsWith("Patrol") ? 28 : 22,
+    };
   }
 
   const npcs = [
-    {
-      name: "Hauler 11",
-      spriteIndex: push(npcA),
-      drawSize: 52,
-      radius: 20,
-      x: drift.x + 240,
-      y: drift.y - 140,
-      heading: 0.4,
-      speed: 22,
-    },
-    {
-      name: "Patrol 4",
-      spriteIndex: push(npcB),
-      drawSize: 44,
-      radius: 16,
-      x: planets[0].x + 160,
-      y: planets[0].y + 70,
-      heading: 2.1,
-      speed: 28,
-    },
+    placeNpc("Hauler 11", push(npcA), 52, 20, drift),
+    placeNpc("Patrol 4", push(npcB), 44, 16, planets[0]),
   ];
 
   let worldRadius = sun.drawSize * 0.5 + 500;
@@ -369,8 +461,8 @@ export function generateHeliosSystem(seed = HELIOS_SEED) {
       spriteIndex: push(playerShip.texture),
       drawSize: SHIP_DRAW,
       radius: 18,
-      x: spawn.x + 110,
-      y: spawn.y + 30,
+      x: spawn.x,
+      y: spawn.y,
       heading: 0.15,
     },
     sprites,
