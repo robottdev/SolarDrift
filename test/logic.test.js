@@ -9,6 +9,9 @@ import {
   applySale,
   cargoMass,
   cargoSpace,
+  chipCollected,
+  cutRock,
+  ejectChipVelocity,
   formatCredits,
   headingVector,
   mineTick,
@@ -24,6 +27,7 @@ import {
   saleValue,
   sellAll,
   stationPrices,
+  tractorStep,
 } from "../lib/logic.js";
 
 test("mineral catalog covers common through exotic asteroid ore", () => {
@@ -147,4 +151,25 @@ test("play-plane collisions are ships and asteroids only", () => {
   assert.ok(Math.abs(bumped.x - rocks[0].x) >= 18 - 1e-6);
   const gone = resolvePlayCollisions(ship, [{ x: 12, y: 0, radius: 8, gone: true }], []);
   assert.equal(gone.hit, false);
+});
+
+test("cutting a rock leaves ore for the tractor instead of filling the hold immediately", () => {
+  const rock = { mineral: "ice", reserve: 8, hardness: MINERALS.ice.hardness };
+  const cut = cutRock(rock, 1, 10);
+  assert.ok(cut.extracted > 0);
+  assert.ok(cut.rock.reserve < 8);
+  assert.equal(cut.mineral, "ice");
+  const deposited = mineTick(rock, 1, {});
+  assert.ok((deposited.cargo.ice || 0) > 0);
+});
+
+test("tractor chips kick off the rock then reel into the ship", () => {
+  const kick = ejectChipVelocity(10, 0, 0, 0, () => 0.5);
+  assert.ok(kick.vx > 0);
+  let chip = { x: 80, y: 0, vx: 0, vy: 0, heading: 0, spin: 1, life: 2 };
+  chip = tractorStep(chip, 0, 0, 0.2);
+  assert.ok(chip.x < 80);
+  assert.equal(chipCollected({ x: 2, y: 0, life: 1 }, 0, 0, 16), true);
+  assert.equal(chipCollected({ x: 80, y: 0, life: 1 }, 0, 0, 16), false);
+  assert.equal(chipCollected({ x: 80, y: 0, life: 0 }, 0, 0, 16), true);
 });
