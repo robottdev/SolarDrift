@@ -21,6 +21,7 @@ import {
   nextMissionIndex,
   rockVisualDrawSize,
   rockVisualRadius,
+  resolvePlayCollisions,
   sellAll,
   shortestAngle,
   stationPrices,
@@ -578,32 +579,12 @@ export class Game {
   }
 
   bounceWorld(p) {
+    const resolved = resolvePlayCollisions(p, this.rocks, this.npcs);
+    p.x = resolved.x;
+    p.y = resolved.y;
+    p.vx = resolved.vx;
+    p.vy = resolved.vy;
     const dSun = Math.hypot(p.x, p.y);
-    const minR = this.scene.sun.radius * 0.86;
-    if (dSun < minR) {
-      const nx = p.x / Math.max(1e-3, dSun);
-      const ny = p.y / Math.max(1e-3, dSun);
-      p.x = nx * minR;
-      p.y = ny * minR;
-      p.vx *= -0.4;
-      p.vy *= -0.4;
-      p.hull -= 4;
-      this.shake = 5;
-      this.audio.hit();
-      if (p.hull <= 0) this.kill("PIP: You mined the star. That is not a mineral.");
-    }
-    for (const body of this.planets) {
-      const d = dist(p.x, p.y, body.x, body.y);
-      const min = body.radius + p.radius * 0.6;
-      if (d < min) {
-        const nx = (p.x - body.x) / Math.max(1e-3, d);
-        const ny = (p.y - body.y) / Math.max(1e-3, d);
-        p.x = body.x + nx * min;
-        p.y = body.y + ny * min;
-        p.vx *= -0.35;
-        p.vy *= -0.35;
-      }
-    }
     const limit = this.scene.worldRadius * 1.15;
     if (dSun > limit) {
       p.x *= limit / dSun;
@@ -629,6 +610,9 @@ export class Game {
       const f = headingVector(n.heading);
       n.x += f.x * n.speed * dt;
       n.y += f.y * n.speed * dt;
+      const bounced = resolvePlayCollisions(n, this.rocks);
+      n.x = bounced.x;
+      n.y = bounced.y;
     }
   }
 
@@ -797,10 +781,6 @@ export class Game {
     this.drawBackground(ctx);
     this.drawSunGlow(ctx);
     this.drawSprite(ctx, this.scene.sun.spriteIndex, 0, 0, this.scene.sun.drawSize, 0, false);
-    for (const rock of this.rocks) {
-      if (rock.gone) continue;
-      this.drawSprite(ctx, rock.spriteIndex, rock.x, rock.y, rock.drawSize, rock.heading, false);
-    }
     for (const planet of this.planets) {
       this.drawSprite(ctx, planet.spriteIndex, planet.x, planet.y, planet.drawSize, 0, true);
       for (const moon of planet.moons) {
@@ -810,6 +790,10 @@ export class Game {
     }
     const sp = this.stationPos();
     this.drawSprite(ctx, this.station.spriteIndex, sp.x, sp.y, this.station.drawSize, this.station.phase, false);
+    for (const rock of this.rocks) {
+      if (rock.gone) continue;
+      this.drawSprite(ctx, rock.spriteIndex, rock.x, rock.y, rock.drawSize, rock.heading, false);
+    }
     for (const n of this.npcs) {
       this.drawSprite(ctx, n.spriteIndex, n.x, n.y, n.drawSize, n.heading, false);
     }

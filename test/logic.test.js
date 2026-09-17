@@ -20,6 +20,7 @@ import {
   rayCircleHit,
   rockVisualDrawSize,
   rockVisualRadius,
+  resolvePlayCollisions,
   saleValue,
   sellAll,
   stationPrices,
@@ -133,4 +134,17 @@ test("mined rocks shrink collision and draw size together", () => {
   rock.reserve = 0;
   assert.equal(rockVisualRadius(rock), 50 * 0.28);
   assert.equal(rockVisualDrawSize(rock), 128 * 0.28);
+});
+
+test("play-plane collisions are ships and asteroids only", () => {
+  const ship = { x: 0, y: 0, radius: 10, vx: 4, vy: 0 };
+  const planetHit = resolvePlayCollisions(ship, [], []);
+  assert.equal(planetHit.x, 0);
+  assert.equal(planetHit.hit, false);
+  const rocks = [{ x: 12, y: 0, radius: 8, gone: false }];
+  const bumped = resolvePlayCollisions(ship, rocks, []);
+  assert.equal(bumped.hit, true);
+  assert.ok(Math.abs(bumped.x - rocks[0].x) >= 18 - 1e-6);
+  const gone = resolvePlayCollisions(ship, [{ x: 12, y: 0, radius: 8, gone: true }], []);
+  assert.equal(gone.hit, false);
 });

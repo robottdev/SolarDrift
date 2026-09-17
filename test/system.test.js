@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateHeliosSystem } from "../public/js/system.js";
-import { HELIOS_SEED, MINERALS } from "../lib/logic.js";
+import { BODY_GAP, HELIOS_SEED, MINERALS, dist, moonWorldPos, spriteRadius, stationWorldPos } from "../lib/logic.js";
 
 test("Helios system generates a belt, station, and Ghost Vein", () => {
   const scene = generateHeliosSystem(HELIOS_SEED);
@@ -43,5 +43,57 @@ test("Helios system generates a belt, station, and Ghost Vein", () => {
   for (const n of scene.npcs) {
     assert.ok(n.drawSize <= 52);
     assert.ok(n.drawSize < scene.station.drawSize);
+  }
+});
+
+test("Helios bodies keep a gap and never overlap sprites", () => {
+  const scene = generateHeliosSystem(HELIOS_SEED);
+  const pts = [
+    { id: "sun", x: 0, y: 0, r: spriteRadius(scene.sun) },
+    ...scene.planets.map((p) => ({ id: p.id, x: p.x, y: p.y, r: spriteRadius(p) })),
+  ];
+  for (const p of scene.planets) {
+    for (const m of p.moons) {
+      assert.ok(
+        m.orbitRadius + 1e-6 >= spriteRadius(p) + spriteRadius(m) + BODY_GAP,
+        `${m.name} orbit clips ${p.name}`
+      );
+      const pos = moonWorldPos(p, m);
+      pts.push({ id: m.name, x: pos.x, y: pos.y, r: spriteRadius(m) });
+    }
+    for (let i = 0; i < p.moons.length; i++) {
+      for (let j = i + 1; j < p.moons.length; j++) {
+        const a = p.moons[i];
+        const b = p.moons[j];
+        assert.ok(
+          Math.abs(a.orbitRadius - b.orbitRadius) + 1e-6 >= spriteRadius(a) + spriteRadius(b) + BODY_GAP,
+          `${a.name} orbit overlaps ${b.name}`
+        );
+      }
+    }
+  }
+  const host = scene.planets[scene.station.parent] || scene.planets[0];
+  assert.ok(
+    scene.station.orbitRadius + 1e-6 >= spriteRadius(host) + spriteRadius(scene.station) + BODY_GAP,
+    "station clips host planet"
+  );
+  for (const m of host.moons) {
+    assert.ok(
+      Math.abs(scene.station.orbitRadius - m.orbitRadius) + 1e-6 >=
+        spriteRadius(scene.station) + spriteRadius(m) + BODY_GAP,
+      `station orbit overlaps ${m.name}`
+    );
+  }
+  const st = stationWorldPos(scene.station, scene.planets);
+  pts.push({ id: "station", x: st.x, y: st.y, r: spriteRadius(scene.station) });
+  for (const rock of scene.rocks) pts.push({ id: rock.id, x: rock.x, y: rock.y, r: spriteRadius(rock) });
+
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      const a = pts[i];
+      const b = pts[j];
+      const d = dist(a.x, a.y, b.x, b.y);
+      assert.ok(d + 1e-6 >= a.r + b.r + BODY_GAP, `${a.id} overlaps ${b.id} (d=${d.toFixed(1)} need ${(a.r + b.r + BODY_GAP).toFixed(1)})`);
+    }
   }
 });
