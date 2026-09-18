@@ -1,5 +1,6 @@
 import {
   CARGO_CAPACITY,
+  CHIP_MASS,
   HELIOS_SEED,
   LASER_RANGE,
   MINERALS,
@@ -7,15 +8,19 @@ import {
   STARTING_FUEL,
   STARTING_HULL,
   STATION_RANGE,
+  TRACTOR_CATCH,
   applyMine,
   applySale,
   cargoMass,
+  cargoSpace,
+  chipCollected,
   clamp,
+  cutRock,
   dist,
+  ejectChipVelocity,
   formatCredits,
   formatTonnes,
   headingVector,
-  mineTick,
   moonWorldPos,
   nearestMiningTarget,
   nextMissionIndex,
@@ -26,6 +31,7 @@ import {
   shortestAngle,
   stationPrices,
   stationWorldPos,
+  tractorStep,
   wrapAngle,
 } from "/lib/logic.js";
 import { AudioEngine } from "./audio.js";
@@ -63,6 +69,8 @@ export class Game {
     this.zoom = 1;
     this.prices = stationPrices(1);
     this.cutHeld = false;
+    this.chips = [];
+    this.cutAcc = 0;
     this.bind();
     this.refreshContinue();
     this.loop = this.loop.bind(this);
@@ -310,6 +318,10 @@ export class Game {
     this.laserVis = 0;
     this.mining = false;
     this.particles = [];
+    this.chips = [];
+    this.cutAcc = 0;
+    this.cutSprite = 0;
+    this.cutMineral = null;
     if (!fresh) this.syncHud();
     else this.syncHud();
   }
@@ -414,6 +426,12 @@ export class Game {
       this.toast("PIP: No buy desk in this volume. The Anchorage is over Drift.");
       return;
     }
+    if (this.cutAcc > 0.001 && this.cutMineral) {
+      this.ingestChip({ mineral: this.cutMineral, amount: this.cutAcc });
+      this.cutAcc = 0;
+    }
+    for (const chip of this.chips) this.ingestChip(chip);
+    this.chips = [];
     const mass = cargoMass(this.player.cargo);
     if (mass <= 0) {
       this.toast("Voss: Hold's empty. I don't buy air.");
@@ -520,13 +538,14 @@ export class Game {
     this.steerPlayer(dt);
     this.updateMotion(dt);
     this.updateMining(dt);
+    this.updateChips(dt);
     this.updateParticles(dt);
     this.player.fuel = clamp(this.player.fuel + 1.6 * dt, 0, 120);
     if (this.player.hull < this.player.maxHull) this.player.hull = clamp(this.player.hull + 1.2 * dt, 0, this.player.maxHull);
     const sec = this.time | 0;
     const prev = (this.time - dt) | 0;
     if (sec !== prev && sec % 2 === 0) this.syncHud();
-    if (this.laserHeld() || this.mining) this.syncHud();
+    if (this.laserHeld() || this.mining || (this.chips && this.chips.length)) this.syncHud();
     if (sec !== prev && sec % 20 === 0) this.save();
     this.shake = Math.max(0, this.shake - dt * 8);
   }
@@ -652,20 +671,72 @@ export class Game {
     if (!hit) return;
     this.mining = true;
     const rock = this.rocks[hit.index];
-    const result = mineTick(rock, dt, this.player.cargo);
-    this.player.cargo = result.cargo;
+    const pending = (this.chips || []).reduce((n, c) => n + c.amount, 0) + (this.cutAcc || 0);
+    const space = cargoSpace(this.player.cargo) - pending;
+    const result = cutRock(rock, dt, space);
     this.rocks[hit.index] = result.rock;
     if (result.full) {
       this.toast("PIP: Hold is full. Sell at the Anchorage before we invent a second ship.");
-    } else if (result.extracted > 0) {
-      this.flags = applyMine(this.flags, result.mineral, result.extracted);
+      return;
+    }
+    if (result.extracted > 0) {
       const spec = MINERALS[result.mineral];
-      this.burst(hit.x, hit.y, 0, spec.color, 3);
+      this.burst(hit.x, hit.y, 0, spec.color, 2);
+      this.cutAcc = (this.cutAcc || 0) + result.extracted;
+      this.cutMineral = result.mineral;
+      this.cutSprite = rock.spriteIndex;
+      while (this.cutAcc >= CHIP_MASS && (this.chips || []).length < 28) {
+        this.spawnChip(hit.x, hit.y, result.mineral, CHIP_MASS, rock.spriteIndex);
+        this.cutAcc -= CHIP_MASS;
+      }
       if (result.rock.reserve <= 0) {
+        if (this.cutAcc > 0.001) {
+          this.spawnChip(hit.x, hit.y, result.mineral, this.cutAcc, rock.spriteIndex);
+          this.cutAcc = 0;
+        }
         this.rocks[hit.index].gone = true;
-        this.toast(`PIP: Rock spent. ${spec.name} claimed.`);
+        this.toast(`PIP: Rock spent. Reeling in ${spec.name}.`);
       }
     }
+  }
+
+  spawnChip(x, y, mineral, amount, spriteIndex) {
+    const p = this.player;
+    const kick = ejectChipVelocity(x, y, p.x, p.y);
+    this.chips.push({
+      x,
+      y,
+      vx: kick.vx + p.vx * 0.2,
+      vy: kick.vy + p.vy * 0.2,
+      mineral,
+      amount,
+      spriteIndex,
+      drawSize: 16 + Math.min(14, amount * 22),
+      heading: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 8,
+      life: 5.5,
+    });
+  }
+
+  ingestChip(chip) {
+    const id = chip.mineral;
+    this.player.cargo = { ...this.player.cargo, [id]: (this.player.cargo[id] || 0) + chip.amount };
+    this.flags = applyMine(this.flags, id, chip.amount);
+  }
+
+  updateChips(dt) {
+    if (!this.chips.length) return;
+    const p = this.player;
+    const next = [];
+    for (const chip of this.chips) {
+      const moved = tractorStep(chip, p.x, p.y, dt);
+      if (chipCollected(moved, p.x, p.y, p.radius + TRACTOR_CATCH)) {
+        this.ingestChip(moved);
+        continue;
+      }
+      next.push(moved);
+    }
+    this.chips = next;
   }
 
   burst(x, y, ang, color, n) {
@@ -699,6 +770,12 @@ export class Game {
 
   save() {
     if (!this.player) return;
+    if (this.cutAcc > 0.001 && this.cutMineral) {
+      this.ingestChip({ mineral: this.cutMineral, amount: this.cutAcc });
+      this.cutAcc = 0;
+    }
+    for (const chip of this.chips) this.ingestChip(chip);
+    this.chips = [];
     const data = {
       flags: this.flags,
       player: this.player,
@@ -799,6 +876,8 @@ export class Game {
     }
     if (this.player.nav) this.drawNav(ctx);
     this.drawLaser(ctx);
+    this.drawTractor(ctx);
+    this.drawChips(ctx);
     this.drawSprite(ctx, this.scene.player.spriteIndex, this.player.x, this.player.y, this.player.drawSize, this.player.heading, false);
     for (const q of this.particles) {
       ctx.globalAlpha = clamp(q.life * 2, 0, 1);
@@ -897,6 +976,42 @@ export class Game {
     ctx.restore();
   }
 
+  drawTractor(ctx) {
+    if (!this.chips.length) return;
+    const origin = this.worldToScreen(this.player.x, this.player.y);
+    ctx.save();
+    ctx.lineCap = "round";
+    for (const chip of this.chips) {
+      const spec = MINERALS[chip.mineral];
+      const dest = this.worldToScreen(chip.x, chip.y);
+      const color = spec ? spec.color : "#5ce1ff";
+      ctx.strokeStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 12;
+      ctx.globalAlpha = 0.45;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(origin.x, origin.y);
+      ctx.lineTo(dest.x, dest.y);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 0.7;
+      ctx.strokeStyle = "#d9f8ff";
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(origin.x, origin.y);
+      ctx.lineTo(dest.x, dest.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  drawChips(ctx) {
+    for (const chip of this.chips) {
+      this.drawSprite(ctx, chip.spriteIndex, chip.x, chip.y, chip.drawSize, chip.heading, false);
+    }
+  }
+
   drawNav(ctx) {
     const p = this.player;
     const a = this.worldToScreen(p.x, p.y);
@@ -945,7 +1060,7 @@ export class Game {
     ctx.fillStyle = "#7f93b8";
     const p = this.player;
     ctx.fillText(
-      `HULL ${p.hull | 0}   SPD ${Math.hypot(p.vx, p.vy) | 0}   ${this.mining ? "CUTTING" : this.laserHeld() ? "LASER" : "DRIFT"}`,
+      `HULL ${p.hull | 0}   SPD ${Math.hypot(p.vx, p.vy) | 0}   ${this.mining ? "CUTTING" : this.chips.length ? "TRACTOR" : this.laserHeld() ? "LASER" : "DRIFT"}`,
       16,
       40
     );
@@ -998,7 +1113,7 @@ export class Game {
     document.getElementById("hold").textContent = `${formatTonnes(cargoMass(p.cargo))} / ${CARGO_CAPACITY}t`;
     document.getElementById("clock").textContent = new Date(this.time * 1000).toISOString().substring(14, 19);
     const laser = document.getElementById("laser-state");
-    if (laser) laser.textContent = this.mining ? "CUTTING" : this.laserHeld() ? "BEAM" : "IDLE";
+    if (laser) laser.textContent = this.mining ? "CUTTING" : this.chips.length ? "TRACTOR" : this.laserHeld() ? "BEAM" : "IDLE";
     const cargo = document.getElementById("cargo");
     const entries = Object.entries(p.cargo).filter(([, n]) => n > 0.05);
     cargo.innerHTML = entries.length
