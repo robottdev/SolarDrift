@@ -31,9 +31,10 @@ npm test
 | V | Scan nearest rock |
 | C | Hail Anchorage (or PIP) |
 | T | Sell the hold at dock |
+| J | Jump a wormhole (must be in the gate) |
 | Esc | Pause / save |
 
-The laser is the only hardpoint. It strips the first asteroid in the beam. Scan to assay the vein. Sell at **Helios Anchorage** over Drift.
+The laser is the only hardpoint. It strips the first asteroid in the beam and will also cook a hostile if you point it at one. Scan to assay the vein. Sell at a yard — **Helios Anchorage** over Drift in system zero.
 
 ## Minerals & Credits
 
@@ -47,7 +48,9 @@ Asteroids in the Helios belt carry a posted mineral. The Anchorage pays **Credit
 
 **Exotic** — Helium-3 (220), Aetherite (400, Ghost Vein)
 
-Hold capacity is 24 tonnes. Ice is the tutorial cut. Iron pays the yard. Titanium fights back. Platinum-family ore feeds the assay. The magenta Ghost Vein is the story rock.
+Hold capacity follows ship class (hauler 24t, interceptor 10t). Ice is the tutorial cut. Iron pays the yard. Titanium fights back. Platinum-family ore feeds the assay. The magenta Ghost Vein is the story rock.
+
+Start Claim opens **world settings**: a seed string (same seed remakes the same galaxy), number of solar systems chained by wormholes, hostile density, starting Credits, ship class, planet density, asteroid density, and starting flux. Fighters can mine; haulers just do it better.
 
 ## Campaign
 
@@ -62,10 +65,10 @@ Use **Lock Objective** if you lose the plot. Hail empty space to talk to PIP.
 3. Railway detects Node, installs with `npm ci`, and starts `npm start` (`node server.js`).
 4. A `Dockerfile` is included if you prefer image builds.
 5. Under **Settings → Networking**, generate a public domain.
-6. Confirm `/health` returns `"version": "2.0.0"`.
+6. Confirm `/health` returns `"version": "2.1.0"`.
 
 The process **must** listen on `process.env.PORT` (already wired). No other environment variables are required.
 
 ## Art
 
-Helios (star, Drift, Cinder, Bruise, Nys, moons, belt, Anchorage, hauler) is generated on boot from `public/stellar/js`. Tweak a planet or asteroid there, refresh the game. See `public/assets/ATTRIBUTION.md`.
+Helios (star, Drift, Cinder, Bruise, Nys, moons, belt, Anchorage, and extra systems from the seed) is generated when you file a claim from `public/stellar/js`. Tweak a planet or asteroid there, refresh the game. See `public/assets/ATTRIBUTION.md`.

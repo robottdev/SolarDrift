@@ -1,14 +1,14 @@
-import { generateHeliosSystem } from "./system.js";
+import { generateGalaxy } from "./system.js";
 
 self.onmessage = (event) => {
-  const { id, seed } = event.data || {};
+  const { id, settings, seed } = event.data || {};
   try {
-    const scene = generateHeliosSystem(seed);
+    const galaxy = generateGalaxy(settings || { seed });
     const transfer = [];
-    for (const sprite of scene.sprites) {
+    for (const sprite of galaxy.sprites) {
       if (sprite.pixels?.buffer) transfer.push(sprite.pixels.buffer);
     }
-    self.postMessage({ id, ok: true, scene }, transfer);
+    self.postMessage({ id, ok: true, galaxy }, transfer);
   } catch (err) {
     self.postMessage({ id, ok: false, error: err && err.message ? err.message : String(err) });
   }
