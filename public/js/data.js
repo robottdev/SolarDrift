@@ -1,7 +1,7 @@
 export const TITLE = "SOLAR DRIFT";
 export const EPISODE = "Episode I · The Claim";
 export const CALLSIGN = "SCOTT · PIP";
-export const VERSION = "2.0.0";
+export const VERSION = "2.1.0";
 
 export const MISSIONS = [
   {

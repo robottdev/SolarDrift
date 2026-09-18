@@ -15,12 +15,12 @@
       href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=IBM+Plex+Sans:wght@400;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/style.css?v=2.0.0" />
+    <link rel="stylesheet" href="/css/style.css?v=2.1.0" />
   </head>
   <body>
     <div class="scanlines" aria-hidden="true"></div>
 
-    <section id="loading" class="overlay">
+    <section id="loading" class="overlay hidden">
       <div class="title-card">
         <p class="eyebrow">Stellar Sprites</p>
         <h1>HELIOS</h1>
@@ -28,13 +28,13 @@
       </div>
     </section>
 
-    <section id="title" class="overlay hidden">
+    <section id="title" class="overlay">
       <div class="title-card">
         <p class="eyebrow">Space miner · Helios claim</p>
         <h1>SOLAR DRIFT</h1>
         <p class="episode">Episode I · The Claim</p>
         <p class="tag">
-          Captain Scott (self-proclaimed) and PIP cut rock for Credits. The mining laser is the only thing on the hull that still works on purpose.
+          Captain Scott (self-proclaimed) and PIP cut rock for Credits. Dial a seed, pick a hull, and file the claim. The mining laser is the only thing that still works on purpose.
         </p>
         <div class="title-actions">
           <button id="btn-new" class="primary">Start Claim</button>
@@ -50,6 +50,58 @@
       </div>
     </section>
 
+    <section id="setup" class="overlay hidden">
+      <div class="panel-card setup-card">
+        <p class="eyebrow">New claim</p>
+        <h2>World Settings</h2>
+        <p class="tag">
+          Same seed remakes the same galaxy. Wormholes chain the systems. Fighters can mine; haulers just do it without complaining.
+        </p>
+
+        <label class="setting">
+          <span>World seed</span>
+          <div class="seed-row">
+            <input id="setup-seed" type="text" maxlength="48" autocomplete="off" spellcheck="false" />
+            <button id="btn-seed-rand" type="button" class="ghost">Random</button>
+          </div>
+        </label>
+
+        <label class="setting">
+          <span>Solar systems <em id="val-systems">3</em></span>
+          <input id="setup-systems" type="range" min="1" max="8" step="1" />
+        </label>
+        <label class="setting">
+          <span>Hostile density <em id="val-hostiles">1</em></span>
+          <input id="setup-hostiles" type="range" min="0" max="3" step="1" />
+        </label>
+        <label class="setting">
+          <span>Starting money <em id="val-credits">18</em></span>
+          <input id="setup-credits" type="range" min="0" max="400" step="2" />
+        </label>
+        <label class="setting">
+          <span>Planet density <em id="val-planets">1.0</em></span>
+          <input id="setup-planets" type="range" min="0.4" max="1.8" step="0.2" />
+        </label>
+        <label class="setting">
+          <span>Asteroid density <em id="val-asteroids">1.0</em></span>
+          <input id="setup-asteroids" type="range" min="0.4" max="1.8" step="0.2" />
+        </label>
+        <label class="setting">
+          <span>Starting flux <em id="val-fuel">90</em></span>
+          <input id="setup-fuel" type="range" min="30" max="160" step="5" />
+        </label>
+
+        <h3>Player ship</h3>
+        <div class="ship-grid" id="setup-ships"></div>
+        <p class="ship-blurb" id="setup-blurb"></p>
+
+        <div class="title-actions">
+          <button id="btn-setup-go" class="primary">File Claim</button>
+          <button id="btn-setup-back" class="ghost">Back</button>
+        </div>
+      </div>
+    </section>
+
     <section id="how" class="overlay hidden">
       <div class="panel-card">
         <h2>Miner Brief</h2>
@@ -58,9 +110,11 @@
           <li><kbd>Shift</kbd> boost · <kbd>X</kbd> brake · scroll to zoom</li>
           <li><kbd>Space</kbd> or hold <kbd>CUT</kbd> — mining laser. Beam grabs the nearest rock in front of you</li>
           <li><kbd>V</kbd> scan nearest rock · <kbd>C</kbd> hail station or PIP</li>
-          <li><kbd>T</kbd> sell the hold at Helios Anchorage (must be in dock range)</li>
-          <li>Currency is <strong>Credits (CR)</strong>. The Anchorage pays posted rates per tonne</li>
-          <li>Hold is 24t. Ice, iron, titanium, then platinum-family, then the magenta Ghost Vein</li>
+          <li><kbd>T</kbd> sell the hold at a yard (must be in dock range)</li>
+          <li><kbd>J</kbd> jump a wormhole when you are in the gate</li>
+          <li>Currency is <strong>Credits (CR)</strong>. Yards pay posted rates per tonne</li>
+          <li>Hold size and cutter rate follow ship class. Haulers mine. Fighters can, just worse.</li>
+          <li>Ice, iron, titanium, platinum-family, then the magenta Ghost Vein in Helios</li>
         </ul>
         <h3>Belt board</h3>
         <ul class="help minerals">
@@ -129,6 +183,7 @@
           <button data-act="hail">COMMS</button>
           <button data-act="scan">SCAN</button>
           <button data-act="sell">SELL</button>
+          <button data-act="jump">JUMP</button>
           <button id="btn-cut" type="button">CUT</button>
           <button data-act="pause">II</button>
         </section>
@@ -179,6 +234,6 @@
       </div>
     </section>
 
-    <script type="module" src="/js/main.js?v=2.0.0"></script>
+    <script type="module" src="/js/main.js?v=2.1.0"></script>
   </body>
 </html>

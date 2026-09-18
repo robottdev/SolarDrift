@@ -1,12 +1,8 @@
 import {
-  CARGO_CAPACITY,
   CHIP_MASS,
-  HELIOS_SEED,
   LASER_RANGE,
   MINERALS,
-  STARTING_CREDITS,
   STARTING_FUEL,
-  STARTING_HULL,
   STATION_RANGE,
   TRACTOR_CATCH,
   applyMine,
@@ -22,7 +18,7 @@ import {
   formatTonnes,
   headingVector,
   moonWorldPos,
-  nearestMiningTarget,
+  nearestLaserTarget,
   nextMissionIndex,
   rockVisualDrawSize,
   rockVisualRadius,
@@ -31,13 +27,16 @@ import {
   shortestAngle,
   stationPrices,
   stationWorldPos,
+  steerChase,
   tractorStep,
   wrapAngle,
 } from "/lib/logic.js";
+import { DEFAULT_SETTINGS, SHIP_CLASSES, clampSettings, randomSeedString, shipClassOf, shipLaserDamage } from "/lib/settings.js";
 import { AudioEngine } from "./audio.js";
 import { CALLSIGN, DIALOGUE, ENDING, INTRO, MISSIONS, TITLE } from "./data.js";
 
-const SAVE_KEY = "solar-drift-save-v4";
+const SAVE_KEY = "solar-drift-save-v5";
+const HOSTILE_LABELS = ["none", "light", "busy", "warzone"];
 
 function canvasFromSprite(sprite) {
   const c = document.createElement("canvas");
@@ -71,13 +70,20 @@ export class Game {
     this.cutHeld = false;
     this.chips = [];
     this.cutAcc = 0;
+    this.settings = clampSettings(DEFAULT_SETTINGS);
+    this.ship = shipClassOf(this.settings);
+    this.galaxy = null;
+    this.systemIndex = 0;
+    this.hostiles = [];
+    this.wormholes = [];
     this.bind();
+    this.bindSetup();
     this.refreshContinue();
     this.loop = this.loop.bind(this);
     requestAnimationFrame(this.loop);
     window.addEventListener("resize", () => this.resize());
     this.resize();
-    this.generateWorld();
+    this.show("title");
   }
 
   bind() {
@@ -118,13 +124,13 @@ export class Game {
       if (!btn) return;
       this.onAction(btn.dataset.act, btn.dataset);
     });
-    document.getElementById("btn-new").onclick = () => this.startNew();
+    document.getElementById("btn-new").onclick = () => this.openSetup();
     document.getElementById("btn-continue").onclick = () => this.continueSave();
     document.getElementById("btn-how").onclick = () => this.show("how");
     document.getElementById("btn-how-close").onclick = () => this.show("title");
     document.getElementById("btn-intro").onclick = () => this.advanceIntro();
-    document.getElementById("btn-retry").onclick = () => this.continueSave() || this.startNew();
-    document.getElementById("btn-restart").onclick = () => this.startNew();
+    document.getElementById("btn-retry").onclick = () => this.continueSave() || this.openSetup();
+    document.getElementById("btn-restart").onclick = () => this.openSetup();
     document.getElementById("btn-ending-title").onclick = () => this.show("title");
     document.getElementById("btn-plot").onclick = () => {
       const x = Number(document.getElementById("nav-x").value);
@@ -152,58 +158,242 @@ export class Game {
     }
   }
 
-  generateWorld() {
+  bindSetup() {
+    const ships = document.getElementById("setup-ships");
+    ships.innerHTML = "";
+    for (const spec of Object.values(SHIP_CLASSES)) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ship-opt";
+      btn.dataset.ship = spec.id;
+      btn.innerHTML = `<strong>${spec.name}</strong><small>Hold ${spec.cargo}t · cutter ${spec.laserRate.toFixed(2)} · hull ${spec.hull}</small>`;
+      btn.onclick = () => this.selectShip(spec.id);
+      ships.appendChild(btn);
+    }
+    document.getElementById("btn-seed-rand").onclick = () => {
+      document.getElementById("setup-seed").value = randomSeedString();
+    };
+    document.getElementById("btn-setup-back").onclick = () => this.show("title");
+    document.getElementById("btn-setup-go").onclick = () => this.confirmSetup();
+    for (const id of ["setup-systems", "setup-hostiles", "setup-credits", "setup-planets", "setup-asteroids", "setup-fuel"]) {
+      document.getElementById(id).addEventListener("input", () => this.syncSetupLabels());
+    }
+  }
+
+  selectShip(id) {
+    this._setupShip = id;
+    for (const btn of document.querySelectorAll(".ship-opt")) {
+      btn.classList.toggle("selected", btn.dataset.ship === id);
+    }
+    const spec = shipClassOf(id);
+    document.getElementById("setup-blurb").textContent = spec.blurb;
+  }
+
+  fillSetup(settings) {
+    const s = clampSettings(settings || this.settings || DEFAULT_SETTINGS);
+    document.getElementById("setup-seed").value = s.seed;
+    document.getElementById("setup-systems").value = String(s.systems);
+    document.getElementById("setup-hostiles").value = String(s.hostileDensity);
+    document.getElementById("setup-credits").value = String(s.startingCredits);
+    document.getElementById("setup-planets").value = String(s.planetDensity);
+    document.getElementById("setup-asteroids").value = String(s.asteroidDensity);
+    document.getElementById("setup-fuel").value = String(s.startingFuel);
+    this.selectShip(s.shipClass);
+    this.syncSetupLabels();
+  }
+
+  syncSetupLabels() {
+    const systems = document.getElementById("setup-systems").value;
+    const hostiles = Number(document.getElementById("setup-hostiles").value);
+    document.getElementById("val-systems").textContent = systems;
+    document.getElementById("val-hostiles").textContent = HOSTILE_LABELS[hostiles] || hostiles;
+    document.getElementById("val-credits").textContent = document.getElementById("setup-credits").value;
+    document.getElementById("val-planets").textContent = Number(document.getElementById("setup-planets").value).toFixed(1);
+    document.getElementById("val-asteroids").textContent = Number(document.getElementById("setup-asteroids").value).toFixed(1);
+    document.getElementById("val-fuel").textContent = document.getElementById("setup-fuel").value;
+  }
+
+  readSetup() {
+    return clampSettings({
+      seed: document.getElementById("setup-seed").value,
+      systems: document.getElementById("setup-systems").value,
+      hostileDensity: document.getElementById("setup-hostiles").value,
+      startingCredits: document.getElementById("setup-credits").value,
+      shipClass: this._setupShip || "hauler",
+      planetDensity: document.getElementById("setup-planets").value,
+      asteroidDensity: document.getElementById("setup-asteroids").value,
+      startingFuel: document.getElementById("setup-fuel").value,
+    });
+  }
+
+  openSetup() {
+    this.fillSetup(this.settings);
+    this.show("setup");
+  }
+
+  confirmSetup() {
+    if (this.generating) return;
+    const settings = this.readSetup();
+    this.audio.resume();
+    this.audio.titleSting();
+    this.generateWorld(settings, { fresh: true });
+  }
+
+  generateWorld(rawSettings, opts = {}) {
+    const settings = clampSettings(rawSettings || this.settings);
+    this.settings = settings;
+    this.ship = shipClassOf(settings);
+    this.pendingPlay = opts;
     this.generating = true;
-    this.setLoad("Generating Helios from Stellar Sprites…");
-    const fail = (err) => {
+    this.ready = false;
+    this.setLoad(`Generating ${settings.systems} system${settings.systems === 1 ? "" : "s"} from seed “${settings.seed}”…`);
+    const fail = () => {
       this.setLoad("Sprite generator failed. Retrying on this thread…");
-      this.generateMain(err);
+      this.generateMain(settings, opts);
     };
     try {
-      const worker = new Worker("/js/worker.js", { type: "module" });
+      const worker = new Worker("/js/worker.js?v=2.1.0", { type: "module" });
       const id = 1;
       const timer = setTimeout(() => {
         worker.terminate();
-        fail(new Error("timeout"));
-      }, 90000);
+        fail();
+      }, 180000);
       worker.onmessage = (ev) => {
         clearTimeout(timer);
         worker.terminate();
         if (!ev.data?.ok) {
-          fail(new Error(ev.data?.error || "worker"));
+          fail();
           return;
         }
-        this.installScene(ev.data.scene);
+        this.installGalaxy(ev.data.galaxy, opts);
       };
-      worker.onerror = (e) => {
+      worker.onerror = () => {
         clearTimeout(timer);
         worker.terminate();
-        fail(e);
+        fail();
       };
-      worker.postMessage({ id, seed: HELIOS_SEED });
-    } catch (err) {
-      fail(err);
+      worker.postMessage({ id, settings });
+    } catch {
+      fail();
     }
   }
 
-  async generateMain() {
+  async generateMain(settings, opts = {}) {
     try {
-      const { generateHeliosSystem } = await import("./system.js");
-      this.installScene(generateHeliosSystem(HELIOS_SEED));
+      const { generateGalaxy } = await import("./system.js");
+      this.installGalaxy(generateGalaxy(settings), opts);
     } catch (err) {
-      this.setLoad(`Could not generate Helios: ${err.message || err}`);
+      this.setLoad(`Could not generate the galaxy: ${err.message || err}`);
     }
   }
 
-  installScene(scene) {
-    this.scene = scene;
-    this.sprites = scene.sprites.map(canvasFromSprite);
+  installGalaxy(galaxy, opts = {}) {
+    this.galaxy = galaxy;
+    this.settings = galaxy.settings || this.settings;
+    this.ship = shipClassOf(this.settings);
+    this.sprites = galaxy.sprites.map(canvasFromSprite);
     this.ready = true;
     this.generating = false;
     this.setLoad("");
-    this.reset(false);
+    const snapshot = opts.snapshot || null;
+    this.systemIndex = snapshot?.systemIndex || 0;
+    if (snapshot?.systems) this.applySavedSystems(snapshot.systems);
+    this.enterSystem(this.systemIndex, { spawn: !snapshot, restorePlayer: snapshot?.player });
+    if (snapshot) this.deserializeState(snapshot);
+    else this.resetPlayer(true);
     this.refreshContinue();
-    if (this.mode === "title") this.show("title");
+    if (opts.fresh) {
+      this.audio.startPad();
+      this.introIndex = 0;
+      this.renderIntro();
+      this.show("intro");
+    } else if (opts.continue) {
+      this.audio.resume();
+      this.audio.startPad();
+      this.show("play");
+      this.toast(`PIP: Seed ${this.settings.seed} reconstructed. Try not to lose the hull twice.`);
+    }
+  }
+
+  applySavedSystems(saved) {
+    if (!Array.isArray(saved) || !this.galaxy) return;
+    for (let i = 0; i < this.galaxy.systems.length; i++) {
+      const snap = saved[i];
+      if (!snap) continue;
+      const sys = this.galaxy.systems[i];
+      if (Array.isArray(snap.rocks)) {
+        const byId = new Map(snap.rocks.map((r) => [r.id, r]));
+        for (const rock of sys.rocks) {
+          const hit = byId.get(rock.id);
+          if (!hit) continue;
+          rock.reserve = hit.reserve;
+          rock.gone = hit.gone;
+          rock.radius = rockVisualRadius(rock);
+          rock.drawSize = rockVisualDrawSize(rock);
+        }
+      }
+      if (Array.isArray(snap.hostiles)) {
+        const byId = new Map(snap.hostiles.map((h) => [h.id, h]));
+        for (const hostile of sys.hostiles) {
+          const hit = byId.get(hostile.id);
+          if (!hit) continue;
+          hostile.hull = hit.hull;
+          hostile.gone = hit.gone;
+          if (Number.isFinite(hit.x)) hostile.x = hit.x;
+          if (Number.isFinite(hit.y)) hostile.y = hit.y;
+          if (Number.isFinite(hit.heading)) hostile.heading = hit.heading;
+        }
+      }
+    }
+  }
+
+  stashSystem() {
+    if (!this.galaxy || !this.scene) return;
+    const sys = this.galaxy.systems[this.systemIndex];
+    if (!sys) return;
+    sys.rocks = this.rocks.map((r) => ({ ...r }));
+    sys.hostiles = this.hostiles.map((h) => ({ ...h }));
+    sys.npcs = this.npcs.map((n) => ({ ...n }));
+  }
+
+  enterSystem(index, { spawn = false, restorePlayer = null, arrival = null } = {}) {
+    const sys = this.galaxy?.systems[index];
+    if (!sys) return;
+    this.systemIndex = index;
+    this.scene = sys;
+    this.planets = sys.planets.map((p) => ({ ...p, moons: p.moons.map((m) => ({ ...m })) }));
+    this.rocks = sys.rocks.map((r) => ({ ...r }));
+    this.npcs = (sys.npcs || []).map((n) => ({ ...n }));
+    this.hostiles = (sys.hostiles || []).map((h) => ({ ...h }));
+    this.wormholes = (sys.wormholes || []).map((w) => ({ ...w }));
+    this.station = { ...sys.station };
+    this.chips = [];
+    this.cutAcc = 0;
+    this.laserHit = null;
+    this.scanTarget = null;
+    if (!this.player) this.resetPlayer(false);
+    if (restorePlayer) {
+      Object.assign(this.player, restorePlayer);
+      this.player.cargo = restorePlayer.cargo || {};
+      this.player.radius = this.ship.radius;
+      this.player.drawSize = this.ship.drawSize;
+      this.player.maxHull = this.ship.hull;
+    } else if (arrival) {
+      this.player.x = arrival.x;
+      this.player.y = arrival.y;
+      this.player.vx *= 0.2;
+      this.player.vy *= 0.2;
+      this.player.nav = null;
+    } else if (spawn) {
+      const origin = sys.player || sys.spawn;
+      this.player.x = origin.x;
+      this.player.y = origin.y;
+      this.player.heading = origin.heading || sys.playerHeading || 0;
+      this.player.vx = 0;
+      this.player.vy = 0;
+      this.player.nav = null;
+    }
+    this.syncHud();
   }
 
   setLoad(msg) {
@@ -219,11 +409,11 @@ export class Game {
   }
 
   refreshContinue() {
-    document.getElementById("btn-continue").disabled = !localStorage.getItem(SAVE_KEY) || !this.ready;
+    document.getElementById("btn-continue").disabled = !localStorage.getItem(SAVE_KEY);
   }
 
   show(mode) {
-    for (const id of ["title", "how", "intro", "game", "dialogue", "pause", "dead", "ending"]) {
+    for (const id of ["title", "setup", "how", "intro", "game", "dialogue", "pause", "dead", "ending"]) {
       const playish = (mode === "play" && id === "game") || (mode === "dialogue" && id === "game") || (mode === "pause" && id === "game");
       document.getElementById(id).classList.toggle("hidden", id !== mode && !playish);
     }
@@ -239,17 +429,69 @@ export class Game {
   }
 
   startNew() {
-    if (!this.ready) {
-      this.toast("Helios is still generating.");
-      return;
+    this.openSetup();
+  }
+
+  continueSave() {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    try {
+      const snapshot = JSON.parse(raw);
+      const settings = clampSettings(snapshot.settings || DEFAULT_SETTINGS);
+      this.generateWorld(settings, { continue: true, snapshot });
+      return true;
+    } catch {
+      this.toast("Save corrupt.");
+      return false;
     }
-    this.audio.resume();
-    this.audio.titleSting();
-    this.audio.startPad();
-    this.reset(true);
-    this.introIndex = 0;
-    this.renderIntro();
-    this.show("intro");
+  }
+
+  resetPlayer(fresh) {
+    const ship = this.ship || shipClassOf(this.settings);
+    const origin = this.scene?.player || this.galaxy?.player || this.scene?.spawn || { x: 0, y: 0 };
+    this.time = 0;
+    this.flags = {};
+    this.player = {
+      x: origin.x,
+      y: origin.y,
+      heading: origin.heading || this.scene?.playerHeading || 0,
+      vx: 0,
+      vy: 0,
+      hull: ship.hull,
+      maxHull: ship.hull,
+      fuel: this.settings?.startingFuel ?? STARTING_FUEL,
+      maxFuel: Math.max(120, ship.fuel || 120),
+      credits: this.settings?.startingCredits ?? 18,
+      cargo: {},
+      nav: null,
+      radius: ship.radius,
+      drawSize: ship.drawSize,
+      thrusting: false,
+    };
+    this.scanTarget = null;
+    this.laserHit = null;
+    this.laserVis = 0;
+    this.mining = false;
+    this.particles = [];
+    this.chips = [];
+    this.cutAcc = 0;
+    this.cutSprite = 0;
+    this.cutMineral = null;
+    if (fresh) this.syncHud();
+    else this.syncHud();
+  }
+
+  deserializeState(data) {
+    this.flags = data.flags || {};
+    this.time = data.time || 0;
+    if (data.player && this.player) {
+      Object.assign(this.player, data.player);
+      this.player.cargo = data.player.cargo || {};
+      this.player.radius = this.ship.radius;
+      this.player.drawSize = this.ship.drawSize;
+      this.player.maxHull = this.ship.hull;
+    }
+    this.syncHud();
   }
 
   renderIntro() {
@@ -272,65 +514,12 @@ export class Game {
     this.renderIntro();
   }
 
-  continueSave() {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw || !this.ready) return false;
-    try {
-      this.deserialize(JSON.parse(raw));
-      this.audio.resume();
-      this.audio.startPad();
-      this.show("play");
-      this.toast("PIP: Claim reconstructed. The laser missed you.");
-      return true;
-    } catch {
-      this.toast("Save corrupt.");
-      return false;
-    }
-  }
-
-  reset(fresh) {
-    if (!this.scene) return;
-    const spawn = this.scene.player;
-    this.time = 0;
-    this.flags = {};
-    this.player = {
-      x: spawn.x,
-      y: spawn.y,
-      heading: spawn.heading || 0,
-      vx: 0,
-      vy: 0,
-      hull: STARTING_HULL,
-      maxHull: STARTING_HULL,
-      fuel: STARTING_FUEL,
-      credits: STARTING_CREDITS,
-      cargo: {},
-      nav: null,
-      radius: spawn.radius,
-      drawSize: spawn.drawSize,
-      thrusting: false,
-    };
-    this.planets = this.scene.planets.map((p) => ({ ...p, moons: p.moons.map((m) => ({ ...m })) }));
-    this.rocks = this.scene.rocks.map((r) => ({ ...r }));
-    this.npcs = this.scene.npcs.map((n) => ({ ...n }));
-    this.station = { ...this.scene.station };
-    this.scanTarget = null;
-    this.laserHit = null;
-    this.laserVis = 0;
-    this.mining = false;
-    this.particles = [];
-    this.chips = [];
-    this.cutAcc = 0;
-    this.cutSprite = 0;
-    this.cutMineral = null;
-    if (!fresh) this.syncHud();
-    else this.syncHud();
-  }
-
   handleKey(e) {
     const k = e.key;
     if (k === "c" || k === "C") this.hail();
     if (k === "v" || k === "V") this.scan();
     if (k === "t" || k === "T") this.sellAtStation();
+    if (k === "j" || k === "J") this.jumpWormhole();
     if (k === "Escape") this.show("pause");
   }
 
@@ -338,6 +527,7 @@ export class Game {
     if (act === "hail") this.hail();
     if (act === "scan") this.scan();
     if (act === "sell") this.sellAtStation();
+    if (act === "jump") this.jumpWormhole();
     if (act === "pause") this.show("pause");
     if (act === "resume") this.show("play");
     if (act === "save") {
@@ -361,13 +551,22 @@ export class Game {
 
   lockObjective() {
     const idx = nextMissionIndex(this.flags);
+    const stationName = this.station?.name || "the yard";
     if (idx <= 1 || idx === 2 || idx === 3 || idx === 5 || idx === 7) {
       const s = this.stationPos();
       this.player.nav = { x: s.x, y: s.y };
-      this.toast("Objective lock: Helios Anchorage");
+      this.toast(`Objective lock: ${stationName}`);
       return;
     }
     if (idx === 6) {
+      if (this.systemIndex !== 0 && this.galaxy?.systems?.length) {
+        const gate = this.wormholes.find((w) => w.target === 0);
+        if (gate) {
+          this.player.nav = { x: gate.x, y: gate.y };
+          this.toast("Objective lock: gate back to Helios");
+          return;
+        }
+      }
       const ghost = this.rocks.find((r) => r.story);
       if (ghost) {
         this.player.nav = { x: ghost.x, y: ghost.y };
@@ -381,7 +580,44 @@ export class Game {
       this.toast(`Objective lock: ${MINERALS[rock.mineral].name} rock`);
       return;
     }
+    const gate = this.wormholes[0];
+    if (gate) {
+      this.player.nav = { x: gate.x, y: gate.y };
+      this.toast(`Objective lock: ${gate.name}`);
+      return;
+    }
     this.toast("No lock.");
+  }
+
+  nearWormhole() {
+    if (!this.player || !this.wormholes?.length) return null;
+    let best = null;
+    for (const hole of this.wormholes) {
+      const d = dist(this.player.x, this.player.y, hole.x, hole.y);
+      if (d < hole.radius + 48 && (!best || d < best.d)) best = { hole, d };
+    }
+    return best?.hole || null;
+  }
+
+  jumpWormhole() {
+    if (this.mode !== "play" || !this.ready) return;
+    const hole = this.nearWormhole();
+    if (!hole) {
+      this.toast("PIP: No gate in this volume. Find the black disc and try not to narrate it.");
+      return;
+    }
+    const dest = this.galaxy?.systems[hole.target];
+    if (!dest) return;
+    this.stashSystem();
+    const arrivalHole = (dest.wormholes || []).find((w) => w.target === this.systemIndex) || dest.wormholes?.[0];
+    const back = headingVector(Math.atan2(arrivalHole?.y || dest.spawn.y, arrivalHole?.x || dest.spawn.x) + Math.PI);
+    const arrival = arrivalHole
+      ? { x: arrivalHole.x + back.x * 90, y: arrivalHole.y + back.y * 90 }
+      : dest.spawn;
+    this.enterSystem(hole.target, { arrival });
+    this.audio.ping();
+    this.toast(`PIP: ${this.scene.starName}. Same laser. New star. Try not to hit the locals.`);
+    this.save();
   }
 
   hail() {
@@ -407,7 +643,7 @@ export class Game {
     }
     const s = this.stationPos();
     if (dist(p.x, p.y, s.x, s.y) - this.station.radius < bestD) {
-      this.toast("SCAN Helios Anchorage: buy desk live. Credits for rock. Coffee for money.");
+      this.toast(`SCAN ${this.station.name}: buy desk live. Credits for rock. Coffee for money.`);
       this.audio.hail();
       return;
     }
@@ -423,7 +659,7 @@ export class Game {
 
   sellAtStation() {
     if (!this.nearStation()) {
-      this.toast("PIP: No buy desk in this volume. The Anchorage is over Drift.");
+      this.toast("PIP: No buy desk in this volume. Dock a yard first.");
       return;
     }
     if (this.cutAcc > 0.001 && this.cutMineral) {
@@ -540,7 +776,11 @@ export class Game {
     this.updateMining(dt);
     this.updateChips(dt);
     this.updateParticles(dt);
-    this.player.fuel = clamp(this.player.fuel + 1.6 * dt, 0, 120);
+    if (this.player.hull <= 0) {
+      this.kill("PIP: Hull is now a concept. The raiders send their regards.");
+      return;
+    }
+    this.player.fuel = clamp(this.player.fuel + 1.6 * dt, 0, this.player.maxFuel || 120);
     if (this.player.hull < this.player.maxHull) this.player.hull = clamp(this.player.hull + 1.2 * dt, 0, this.player.maxHull);
     const sec = this.time | 0;
     const prev = (this.time - dt) | 0;
@@ -552,7 +792,8 @@ export class Game {
 
   steerPlayer(dt) {
     const p = this.player;
-    const rot = 2.5;
+    const ship = this.ship || shipClassOf(this.settings);
+    const rot = ship.turn || 2.5;
     if (this.keys.has("a") || this.keys.has("A") || this.keys.has("ArrowLeft")) p.heading -= rot * dt;
     if (this.keys.has("d") || this.keys.has("D") || this.keys.has("ArrowRight")) p.heading += rot * dt;
     p.heading = wrapAngle(p.heading);
@@ -565,7 +806,7 @@ export class Game {
     }
 
     const boost = this.keys.has("Shift") || this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
-    const accel = (boost ? 260 : 140) * dt;
+    const accel = (boost ? ship.accel * 1.65 : ship.accel) * dt;
     const fwd = headingVector(p.heading);
     const thrusting =
       this.keys.has("w") || this.keys.has("W") || this.keys.has("ArrowUp") || Boolean(p.nav);
@@ -586,7 +827,7 @@ export class Game {
     }
     p.vx *= Math.exp(-0.32 * dt);
     p.vy *= Math.exp(-0.32 * dt);
-    const cap = boost ? 200 : 120;
+    const cap = boost ? ship.boostSpeed : ship.speed;
     const sp = Math.hypot(p.vx, p.vy);
     if (sp > cap) {
       p.vx *= cap / sp;
@@ -594,15 +835,29 @@ export class Game {
     }
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    this.bounceWorld(p);
+    this.bounceWorld(p, dt);
   }
 
-  bounceWorld(p) {
-    const resolved = resolvePlayCollisions(p, this.rocks, this.npcs);
+  bounceWorld(p, dt = 0.016) {
+    const liveHostiles = (this.hostiles || []).filter((h) => !h.gone);
+    const others = [...(this.npcs || []), ...liveHostiles];
+    const resolved = resolvePlayCollisions(p, this.rocks, others);
     p.x = resolved.x;
     p.y = resolved.y;
     p.vx = resolved.vx;
     p.vy = resolved.vy;
+    for (const h of liveHostiles) {
+      const d = dist(p.x, p.y, h.x, h.y);
+      if (d < p.radius + (h.radius || 15) + 1) {
+        p.hull -= 22 * dt;
+        h.hull -= 10 * dt;
+        this.shake = Math.max(this.shake, 5);
+        if (h.hull <= 0) {
+          h.gone = true;
+          this.toast(`PIP: ${h.name} is scrap. The laser still works.`);
+        }
+      }
+    }
     const dSun = Math.hypot(p.x, p.y);
     const limit = this.scene.worldRadius * 1.15;
     if (dSun > limit) {
@@ -633,6 +888,14 @@ export class Game {
       n.x = bounced.x;
       n.y = bounced.y;
     }
+    const p = this.player;
+    for (let i = 0; i < (this.hostiles || []).length; i++) {
+      const h = this.hostiles[i];
+      if (h.gone) continue;
+      const next = steerChase(h, p.x, p.y, dt, 2.1, h.speed || 55);
+      const bounced = resolvePlayCollisions(next, this.rocks, this.npcs);
+      this.hostiles[i] = { ...next, x: bounced.x, y: bounced.y, vx: bounced.vx, vy: bounced.vy };
+    }
   }
 
   laserHeld() {
@@ -657,26 +920,39 @@ export class Game {
       return;
     }
     this.audio.startLaser();
-    this.player.fuel -= 3.8 * dt;
+    this.player.fuel -= (this.ship?.fuelUse || 3.8) * dt;
     const p = this.player;
     const fwd = headingVector(p.heading);
     const originX = p.x + fwd.x * (p.radius * 0.7);
     const originY = p.y + fwd.y * (p.radius * 0.7);
-    const hit = nearestMiningTarget(originX, originY, p.heading, LASER_RANGE, this.rocks);
+    const hit = nearestLaserTarget(originX, originY, p.heading, LASER_RANGE, this.rocks, this.hostiles || []);
     this.laserHit = hit || {
       x: originX + fwd.x * LASER_RANGE,
       y: originY + fwd.y * LASER_RANGE,
       miss: true,
     };
     if (!hit) return;
+    if (hit.kind === "hostile") {
+      this.mining = true;
+      const hostile = this.hostiles[hit.index];
+      if (!hostile || hostile.gone) return;
+      hostile.hull -= shipLaserDamage(dt, this.ship);
+      this.burst(hit.x, hit.y, 0, "#ff5a6a", 3);
+      this.shake = Math.max(this.shake, 3);
+      if (hostile.hull <= 0) {
+        hostile.gone = true;
+        this.toast(`PIP: ${hostile.name} cooked. The cutter is not a weapon. It is also a weapon.`);
+      }
+      return;
+    }
     this.mining = true;
     const rock = this.rocks[hit.index];
     const pending = (this.chips || []).reduce((n, c) => n + c.amount, 0) + (this.cutAcc || 0);
-    const space = cargoSpace(this.player.cargo) - pending;
-    const result = cutRock(rock, dt, space);
+    const space = cargoSpace(this.player.cargo, this.ship?.cargo) - pending;
+    const result = cutRock(rock, dt, space, this.ship?.laserRate);
     this.rocks[hit.index] = result.rock;
     if (result.full) {
-      this.toast("PIP: Hold is full. Sell at the Anchorage before we invent a second ship.");
+      this.toast("PIP: Hold is full. Sell at a yard before we invent a second ship.");
       return;
     }
     if (result.extracted > 0) {
@@ -769,43 +1045,35 @@ export class Game {
   }
 
   save() {
-    if (!this.player) return;
+    if (!this.player || !this.galaxy) return;
     if (this.cutAcc > 0.001 && this.cutMineral) {
       this.ingestChip({ mineral: this.cutMineral, amount: this.cutAcc });
       this.cutAcc = 0;
     }
     for (const chip of this.chips) this.ingestChip(chip);
     this.chips = [];
+    this.stashSystem();
     const data = {
+      settings: this.settings,
+      systemIndex: this.systemIndex,
       flags: this.flags,
       player: this.player,
-      rocks: this.rocks.map((r) => ({ id: r.id, reserve: r.reserve, gone: r.gone })),
       time: this.time,
       credits: this.player.credits,
+      systems: this.galaxy.systems.map((sys) => ({
+        rocks: sys.rocks.map((r) => ({ id: r.id, reserve: r.reserve, gone: r.gone })),
+        hostiles: (sys.hostiles || []).map((h) => ({
+          id: h.id,
+          hull: h.hull,
+          gone: h.gone,
+          x: h.x,
+          y: h.y,
+          heading: h.heading,
+        })),
+      })),
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     this.refreshContinue();
-  }
-
-  deserialize(data) {
-    this.reset(false);
-    this.flags = data.flags || {};
-    Object.assign(this.player, data.player);
-    this.player.cargo = data.player?.cargo || {};
-    if (!this.player.drawSize) this.player.drawSize = this.scene.player.drawSize;
-    this.time = data.time || 0;
-    if (Array.isArray(data.rocks)) {
-      const byId = new Map(data.rocks.map((r) => [r.id, r]));
-      for (const rock of this.rocks) {
-        const saved = byId.get(rock.id);
-        if (!saved) continue;
-        rock.reserve = saved.reserve;
-        rock.gone = saved.gone;
-        rock.radius = rockVisualRadius(rock);
-        rock.drawSize = rockVisualDrawSize(rock);
-      }
-    }
-    this.syncHud();
   }
 
   toast(msg) {
@@ -849,7 +1117,7 @@ export class Game {
     if (!this.ready || !this.player) {
       ctx.fillStyle = "#5ce1ff";
       ctx.font = "16px Share Tech Mono, monospace";
-      ctx.fillText("Generating Helios…", 24, 40);
+      ctx.fillText("Generating galaxy…", 24, 40);
       return;
     }
     ctx.save();
@@ -867,6 +1135,9 @@ export class Game {
     }
     const sp = this.stationPos();
     this.drawSprite(ctx, this.station.spriteIndex, sp.x, sp.y, this.station.drawSize, this.station.phase, false);
+    for (const hole of this.wormholes || []) {
+      this.drawSprite(ctx, hole.spriteIndex, hole.x, hole.y, hole.drawSize, this.time * 0.15, false);
+    }
     for (const rock of this.rocks) {
       if (rock.gone) continue;
       this.drawSprite(ctx, rock.spriteIndex, rock.x, rock.y, rock.drawSize, rock.heading, false);
@@ -874,11 +1145,15 @@ export class Game {
     for (const n of this.npcs) {
       this.drawSprite(ctx, n.spriteIndex, n.x, n.y, n.drawSize, n.heading, false);
     }
+    for (const h of this.hostiles || []) {
+      if (h.gone) continue;
+      this.drawSprite(ctx, h.spriteIndex, h.x, h.y, h.drawSize, h.heading, false);
+    }
     if (this.player.nav) this.drawNav(ctx);
     this.drawLaser(ctx);
     this.drawTractor(ctx);
     this.drawChips(ctx);
-    this.drawSprite(ctx, this.scene.player.spriteIndex, this.player.x, this.player.y, this.player.drawSize, this.player.heading, false);
+    this.drawSprite(ctx, this.galaxy?.player?.spriteIndex ?? this.scene.player.spriteIndex, this.player.x, this.player.y, this.player.drawSize, this.player.heading, false);
     for (const q of this.particles) {
       ctx.globalAlpha = clamp(q.life * 2, 0, 1);
       ctx.fillStyle = q.color;
@@ -1042,6 +1317,7 @@ export class Game {
     for (const p of this.planets) maybe(p.name, p.x, p.y, p.radius, "#ffc14a");
     const sp = this.stationPos();
     maybe(this.station.name, sp.x, sp.y, this.station.radius, "#5ce1ff");
+    for (const hole of this.wormholes || []) maybe(hole.name, hole.x, hole.y, hole.radius, "#e56bff");
     const ghost = this.rocks.find((r) => r.story && !r.gone);
     if (ghost && nextMissionIndex(this.flags) >= 6) {
       maybe("Ghost Vein", ghost.x, ghost.y, ghost.radius, "#e56bff");
@@ -1059,8 +1335,10 @@ export class Game {
     ctx.fillText(TITLE, 16, 22);
     ctx.fillStyle = "#7f93b8";
     const p = this.player;
+    const star = this.scene?.starName || "Helios";
+    const hullName = this.ship?.name || "Hauler";
     ctx.fillText(
-      `HULL ${p.hull | 0}   SPD ${Math.hypot(p.vx, p.vy) | 0}   ${this.mining ? "CUTTING" : this.chips.length ? "TRACTOR" : this.laserHeld() ? "LASER" : "DRIFT"}`,
+      `${star} · ${hullName}   HULL ${p.hull | 0}   SPD ${Math.hypot(p.vx, p.vy) | 0}   ${this.mining ? "CUTTING" : this.chips.length ? "TRACTOR" : this.nearWormhole() ? "GATE" : this.laserHeld() ? "LASER" : "DRIFT"}`,
       16,
       40
     );
@@ -1085,10 +1363,15 @@ export class Game {
     for (const p of this.planets) plot(p.x, p.y, p.kind === "gas" ? "#d48cff" : "#7ec8ff", 3);
     const s = this.stationPos();
     plot(s.x, s.y, "#5ce1ff", 4);
+    for (const hole of this.wormholes || []) plot(hole.x, hole.y, "#c45aff", 5);
     for (const r of this.rocks) {
       if (r.gone) continue;
       if (dist(this.player.x, this.player.y, r.x, r.y) > 1800) continue;
       plot(r.x, r.y, r.story ? "#e56bff" : MINERALS[r.mineral].color, r.story ? 4 : 2);
+    }
+    for (const h of this.hostiles || []) {
+      if (h.gone) continue;
+      plot(h.x, h.y, "#ff5a6a", 3);
     }
     plot(this.player.x, this.player.y, "#ffffff", 4);
     if (this.player.nav) {
@@ -1104,13 +1387,13 @@ export class Game {
     if (!this.player) return;
     const p = this.player;
     const mission = MISSIONS[nextMissionIndex(this.flags)];
-    document.getElementById("callsign").textContent = CALLSIGN;
+    document.getElementById("callsign").textContent = `${CALLSIGN} · ${this.ship?.name || "Hauler"}`;
     document.getElementById("mission-title").textContent = mission.title;
     document.getElementById("mission-brief").textContent = mission.brief;
-    document.getElementById("coords").textContent = `${p.x | 0}, ${p.y | 0}`;
+    document.getElementById("coords").textContent = `${this.scene?.starName || "Helios"} ${p.x | 0}, ${p.y | 0}`;
     document.getElementById("credits").textContent = formatCredits(p.credits);
     document.getElementById("fuel").textContent = p.fuel | 0;
-    document.getElementById("hold").textContent = `${formatTonnes(cargoMass(p.cargo))} / ${CARGO_CAPACITY}t`;
+    document.getElementById("hold").textContent = `${formatTonnes(cargoMass(p.cargo))} / ${this.ship?.cargo || 24}t`;
     document.getElementById("clock").textContent = new Date(this.time * 1000).toISOString().substring(14, 19);
     const laser = document.getElementById("laser-state");
     if (laser) laser.textContent = this.mining ? "CUTTING" : this.chips.length ? "TRACTOR" : this.laserHeld() ? "BEAM" : "IDLE";

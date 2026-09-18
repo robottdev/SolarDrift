@@ -16,6 +16,7 @@ import {
   headingVector,
   mineTick,
   mulberry32,
+  nearestLaserTarget,
   nearestMiningTarget,
   nearestRayHit,
   nextMissionIndex,
@@ -27,6 +28,7 @@ import {
   saleValue,
   sellAll,
   stationPrices,
+  steerChase,
   tractorStep,
 } from "../lib/logic.js";
 
@@ -172,4 +174,14 @@ test("tractor chips kick off the rock then reel into the ship", () => {
   assert.equal(chipCollected({ x: 2, y: 0, life: 1 }, 0, 0, 16), true);
   assert.equal(chipCollected({ x: 80, y: 0, life: 1 }, 0, 0, 16), false);
   assert.equal(chipCollected({ x: 80, y: 0, life: 0 }, 0, 0, 16), true);
+});
+
+test("mining laser can pick a hostile in the cone", () => {
+  const rocks = [{ x: 0, y: -90, radius: 10, reserve: 4, gone: false }];
+  const hostiles = [{ x: 0, y: -30, radius: 12, hull: 20, gone: false }];
+  const hit = nearestLaserTarget(0, 0, 0, 150, rocks, hostiles);
+  assert.equal(hit.kind, "hostile");
+  assert.equal(hit.index, 0);
+  const chased = steerChase({ x: 0, y: 0, heading: 0 }, 40, 0, 0.2, 3, 50);
+  assert.ok(chased.x !== 0 || chased.y !== 0);
 });

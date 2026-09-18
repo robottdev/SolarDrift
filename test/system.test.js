@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateHeliosSystem } from "../public/js/system.js";
+import { generateGalaxy, generateHeliosSystem } from "../public/js/system.js";
 import { BODY_GAP, HELIOS_SEED, MINERALS, dist, moonWorldPos, spriteRadius, stationWorldPos } from "../lib/logic.js";
+import { DEFAULT_SETTINGS, hashSeed, planetCountFor } from "../lib/settings.js";
 
 test("Helios system generates a belt, station, and Ghost Vein", () => {
   const scene = generateHeliosSystem(HELIOS_SEED);
@@ -96,4 +97,29 @@ test("Helios bodies keep a gap and never overlap sprites", () => {
       assert.ok(d + 1e-6 >= a.r + b.r + BODY_GAP, `${a.id} overlaps ${b.id} (d=${d.toFixed(1)} need ${(a.r + b.r + BODY_GAP).toFixed(1)})`);
     }
   }
+});
+
+test("galaxy settings make chained systems and scale planets", () => {
+  const galaxy = generateGalaxy({
+    ...DEFAULT_SETTINGS,
+    seed: "1993",
+    systems: 2,
+    hostileDensity: 2,
+    planetDensity: 0.4,
+    asteroidDensity: 0.5,
+    shipClass: "interceptor",
+  });
+  assert.equal(galaxy.numericSeed, hashSeed("1993"));
+  assert.equal(galaxy.systems.length, 2);
+  assert.equal(galaxy.systems[0].starName, "Helios");
+  assert.equal(galaxy.systems[0].planets.length, planetCountFor(0.4, 4));
+  assert.ok(galaxy.systems[0].planets.find((p) => p.id === "drift"));
+  assert.ok(galaxy.systems[1].starName);
+  assert.notEqual(galaxy.systems[1].starName, "Helios");
+  assert.ok(galaxy.systems[0].wormholes.length >= 1);
+  assert.equal(galaxy.systems[0].wormholes[0].target, 1);
+  assert.ok(galaxy.systems[1].wormholes.some((w) => w.target === 0));
+  assert.ok(galaxy.systems[0].hostiles.length >= 1);
+  assert.ok(galaxy.player.drawSize <= 42);
+  assert.equal(galaxy.settings.shipClass, "interceptor");
 });
