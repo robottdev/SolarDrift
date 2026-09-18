@@ -175,6 +175,7 @@ export class Game {
     };
     document.getElementById("btn-setup-back").onclick = () => this.show("title");
     document.getElementById("btn-setup-go").onclick = () => this.confirmSetup();
+    document.getElementById("setup-seed").addEventListener("focus", (e) => e.target.select());
     for (const id of ["setup-systems", "setup-hostiles", "setup-credits", "setup-planets", "setup-asteroids", "setup-fuel"]) {
       document.getElementById(id).addEventListener("input", () => this.syncSetupLabels());
     }
