@@ -361,6 +361,12 @@ kbd {
   padding: 6px;
 }
 
+#btn-objective,
+#btn-gate {
+  width: 100%;
+  margin-top: 6px;
+}
+
 .sys {
   display: grid;
   grid-template-columns: 88px 22px 1fr 22px 36px;

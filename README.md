@@ -31,10 +31,10 @@ npm test
 | V | Scan nearest rock |
 | C | Hail Anchorage (or PIP) |
 | T | Sell the hold at dock |
-| J | Jump a wormhole (must be in the gate) |
+| J / JUMP | Lock a course to the yard gate, then jump when you are in the orange ring |
 | Esc | Pause / save |
 
-The laser is the only hardpoint. It strips the first asteroid in the beam and will also cook a hostile if you point it at one. Scan to assay the vein. Sell at a yard — **Helios Anchorage** over Drift in system zero.
+The laser is the only hardpoint. It strips the first asteroid in the beam and will also cook a hostile if you point it at one. Scan to assay the vein. Sell at a yard — **Helios Anchorage** over Drift in system zero. Jump gates sit beside the yard as an orange-ringed disc; magenta on radar. File a claim with 2+ solar systems or there is no gate.
 
 ## Minerals & Credits
 
