@@ -15,7 +15,7 @@
       href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=IBM+Plex+Sans:wght@400;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/style.css?v=2.1.0" />
+    <link rel="stylesheet" href="/css/style.css?v=2.1.1" />
   </head>
   <body>
     <div class="scanlines" aria-hidden="true"></div>
@@ -67,7 +67,7 @@
         </label>
 
         <label class="setting">
-          <span>Solar systems <em id="val-systems">3</em></span>
+          <span>Solar systems (gates if 2+) <em id="val-systems">3</em></span>
           <input id="setup-systems" type="range" min="1" max="8" step="1" />
         </label>
         <label class="setting">
@@ -111,7 +111,7 @@
           <li><kbd>Space</kbd> or hold <kbd>CUT</kbd> — mining laser. Beam grabs the nearest rock in front of you</li>
           <li><kbd>V</kbd> scan nearest rock · <kbd>C</kbd> hail station or PIP</li>
           <li><kbd>T</kbd> sell the hold at a yard (must be in dock range)</li>
-          <li><kbd>J</kbd> jump a wormhole when you are in the gate</li>
+          <li><kbd>J</kbd> / <kbd>JUMP</kbd> — lock a course to the yard gate, then jump when you are in the orange ring</li>
           <li>Currency is <strong>Credits (CR)</strong>. Yards pay posted rates per tonne</li>
           <li>Hold size and cutter rate follow ship class. Haulers mine. Fighters can, just worse.</li>
           <li>Ice, iron, titanium, platinum-family, then the magenta Ghost Vein in Helios</li>
@@ -155,9 +155,14 @@
             <button id="btn-plot" data-act="plot">PLOT</button>
           </div>
           <button id="btn-objective" data-act="lock-objective">Lock Objective</button>
+          <button id="btn-gate" data-act="lock-gate">Lock Gate</button>
         </section>
         <section>
           <h3>Claim</h3>
+          <div class="row">
+            <span>Gate</span>
+            <strong id="gate">—</strong>
+          </div>
           <div class="row">
             <span>Book</span>
             <strong id="credits">CR 0</strong>
@@ -234,6 +239,6 @@
       </div>
     </section>
 
-    <script type="module" src="/js/main.js?v=2.1.0"></script>
+    <script type="module" src="/js/main.js?v=2.1.1"></script>
   </body>
 </html>

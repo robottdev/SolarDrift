@@ -766,30 +766,33 @@ function generateRemoteSystem({ seed, index, push, settings, mineralSprites, hos
 function attachWormholes(systems, spriteIndex, numericSeed) {
   if (systems.length < 2 || spriteIndex < 0) return;
   const names = systems.map((s) => s.starName);
+  const vis = WORMHOLE_DRAW * 0.5;
   for (let i = 0; i < systems.length; i++) {
     const rand = mulberry32(numericSeed + 44000 + i * 17);
     const sys = systems[i];
     const occupancy = occupancyFrom(sys.sun, sys.planets, sys.station, sys.rocks);
+    const host = sys.planets[sys.station.parent] || sys.planets[0];
+    const halo = sys.station.orbitRadius + spriteRadius(sys.station) + vis + BODY_GAP + 40;
     const targets = [];
     if (i > 0) targets.push(i - 1);
     if (i < systems.length - 1) targets.push(i + 1);
     const holes = [];
-    for (const target of targets) {
-      const ang = (target + 1) * 2.15 + i * 0.7;
-      const rad = Math.max(sys.worldRadius * 0.72, 3600);
+    for (let t = 0; t < targets.length; t++) {
+      const target = targets[t];
+      const ang = sys.station.phase + Math.PI + t * 1.15;
       const pos =
         placeClearOf(
           rand,
-          WORMHOLE_DRAW * 0.35,
+          vis,
           occupancy,
           (r, n) => {
-            const a = ang + (n ? (r() - 0.5) * 0.8 : 0);
-            const d = rad + (n ? r() * 400 : 0);
-            return { x: Math.cos(a) * d, y: Math.sin(a) * d };
+            const a = ang + (n ? (r() - 0.5) * 0.7 : 0);
+            const d = halo + (n ? r() * 160 : 0);
+            return { x: host.x + Math.cos(a) * d, y: host.y + Math.sin(a) * d };
           },
-          80
-        ) || { x: Math.cos(ang) * rad, y: Math.sin(ang) * rad };
-      occupancy.push({ id: `wh-${i}-${target}`, x: pos.x, y: pos.y, r: WORMHOLE_DRAW * 0.35 });
+          100
+        ) || { x: host.x + Math.cos(ang) * halo, y: host.y + Math.sin(ang) * halo };
+      occupancy.push({ id: `wh-${i}-${target}`, x: pos.x, y: pos.y, r: vis });
       holes.push({
         id: `wh-${i}-${target}`,
         target,
@@ -797,7 +800,7 @@ function attachWormholes(systems, spriteIndex, numericSeed) {
         y: pos.y,
         spriteIndex,
         drawSize: WORMHOLE_DRAW,
-        radius: 42,
+        radius: 48,
         name: `Gate to ${names[target]}`,
       });
     }

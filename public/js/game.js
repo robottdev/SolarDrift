@@ -253,7 +253,7 @@ export class Game {
       this.generateMain(settings, opts);
     };
     try {
-      const worker = new Worker("/js/worker.js?v=2.1.0", { type: "module" });
+      const worker = new Worker("/js/worker.js?v=2.1.1", { type: "module" });
       const id = 1;
       const timer = setTimeout(() => {
         worker.terminate();
@@ -509,7 +509,11 @@ export class Game {
     this.introIndex += 1;
     if (this.introIndex >= INTRO.length) {
       this.show("play");
-      this.toast("PIP: Ice first. Pale rocks. Hold Space. Try not to mine the station.");
+      if ((this.settings?.systems || 1) > 1) {
+        this.toast("PIP: Ice first. The jump gate is the orange ring by the yard — magenta on radar. JUMP locks a course.");
+      } else {
+        this.toast("PIP: Ice first. Pale rocks. Hold Space. Try not to mine the station.");
+      }
       return;
     }
     this.renderIntro();
@@ -529,6 +533,7 @@ export class Game {
     if (act === "scan") this.scan();
     if (act === "sell") this.sellAtStation();
     if (act === "jump") this.jumpWormhole();
+    if (act === "lock-gate") this.lockGate();
     if (act === "pause") this.show("pause");
     if (act === "resume") this.show("play");
     if (act === "save") {
@@ -590,21 +595,40 @@ export class Game {
     this.toast("No lock.");
   }
 
-  nearWormhole() {
+  nearestWormhole() {
     if (!this.player || !this.wormholes?.length) return null;
     let best = null;
     for (const hole of this.wormholes) {
       const d = dist(this.player.x, this.player.y, hole.x, hole.y);
-      if (d < hole.radius + 48 && (!best || d < best.d)) best = { hole, d };
+      if (!best || d < best.d) best = { hole, d };
     }
-    return best?.hole || null;
+    return best;
+  }
+
+  nearWormhole() {
+    const nearest = this.nearestWormhole();
+    if (!nearest) return null;
+    if (nearest.d < (nearest.hole.radius || 48) + 56) return nearest.hole;
+    return null;
+  }
+
+  lockGate() {
+    if (this.mode !== "play" || !this.player) return;
+    if (!this.wormholes?.length) {
+      this.toast("PIP: This claim is one star. File a new one with more systems if you want a gate.");
+      return;
+    }
+    const nearest = this.nearestWormhole();
+    this.player.nav = { x: nearest.hole.x, y: nearest.hole.y };
+    this.toast(`PIP: ${nearest.hole.name} locked. Orange ring by the yard. Fly in, then JUMP.`);
+    this.audio.ui();
   }
 
   jumpWormhole() {
     if (this.mode !== "play" || !this.ready) return;
     const hole = this.nearWormhole();
     if (!hole) {
-      this.toast("PIP: No gate in this volume. Find the black disc and try not to narrate it.");
+      this.lockGate();
       return;
     }
     const dest = this.galaxy?.systems[hole.target];
@@ -632,6 +656,13 @@ export class Game {
 
   scan() {
     const p = this.player;
+    const nearestGate = this.nearestWormhole();
+    if (nearestGate && nearestGate.d < 900) {
+      this.toast(`SCAN ${nearestGate.hole.name}: orange ring, ${nearestGate.d | 0}u. Fly in and JUMP.`);
+      this.player.nav = { x: nearestGate.hole.x, y: nearestGate.hole.y };
+      this.audio.hail();
+      return;
+    }
     let best = null;
     let bestD = 400;
     for (const rock of this.rocks) {
@@ -1136,9 +1167,7 @@ export class Game {
     }
     const sp = this.stationPos();
     this.drawSprite(ctx, this.station.spriteIndex, sp.x, sp.y, this.station.drawSize, this.station.phase, false);
-    for (const hole of this.wormholes || []) {
-      this.drawSprite(ctx, hole.spriteIndex, hole.x, hole.y, hole.drawSize, this.time * 0.15, false);
-    }
+    this.drawWormholes(ctx);
     for (const rock of this.rocks) {
       if (rock.gone) continue;
       this.drawSprite(ctx, rock.spriteIndex, rock.x, rock.y, rock.drawSize, rock.heading, false);
@@ -1163,6 +1192,7 @@ export class Game {
       ctx.globalAlpha = 1;
     }
     this.drawLabels(ctx);
+    this.drawGateMarkers(ctx);
     ctx.restore();
     this.drawVignette(ctx);
     this.drawRadar();
@@ -1194,6 +1224,68 @@ export class Game {
     ctx.beginPath();
     ctx.arc(s.x, s.y, glowR, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  drawWormholes(ctx) {
+    for (const hole of this.wormholes || []) {
+      const s = this.worldToScreen(hole.x, hole.y);
+      const glowR = Math.max(40, hole.drawSize * 0.62 * this.zoom);
+      const glow = ctx.createRadialGradient(s.x, s.y, glowR * 0.12, s.x, s.y, glowR);
+      glow.addColorStop(0, "rgba(255, 190, 90, 0.38)");
+      glow.addColorStop(0.4, "rgba(229, 107, 255, 0.22)");
+      glow.addColorStop(1, "rgba(229, 107, 255, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, glowR, 0, Math.PI * 2);
+      ctx.fill();
+      this.drawSprite(ctx, hole.spriteIndex, hole.x, hole.y, hole.drawSize, this.time * 0.18, false);
+      ctx.save();
+      ctx.strokeStyle = `rgba(229, 107, 255, ${0.55 + 0.35 * Math.sin(this.time * 3)})`;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, (42 + Math.sin(this.time * 2.4) * 8) * this.zoom, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  drawGateMarkers(ctx) {
+    const pad = 34;
+    for (const hole of this.wormholes || []) {
+      const s = this.worldToScreen(hole.x, hole.y);
+      if (s.x >= pad && s.x <= this.w - pad && s.y >= pad && s.y <= this.h - pad) continue;
+      const cx = this.w / 2;
+      const cy = this.h / 2;
+      const sx = s.x - cx;
+      const sy = s.y - cy;
+      const hw = this.w / 2 - pad;
+      const hh = this.h / 2 - pad;
+      const t = Math.min(hw / Math.max(Math.abs(sx), 1e-6), hh / Math.max(Math.abs(sy), 1e-6));
+      const mx = cx + sx * t;
+      const my = cy + sy * t;
+      const ang = Math.atan2(sy, sx);
+      ctx.save();
+      ctx.translate(mx, my);
+      ctx.rotate(ang);
+      ctx.fillStyle = "#e56bff";
+      ctx.beginPath();
+      ctx.moveTo(11, 0);
+      ctx.lineTo(-7, -8);
+      ctx.lineTo(-7, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = "#e56bff";
+      ctx.font = "11px Share Tech Mono, monospace";
+      const label = hole.name;
+      const tw = ctx.measureText(label).width;
+      let lx = mx + 14;
+      let ly = my + 4;
+      if (lx + tw > this.w - 8) lx = mx - tw - 14;
+      if (ly < 18) ly = 18;
+      if (ly > this.h - 8) ly = this.h - 8;
+      ctx.fillText(label, lx, ly);
+    }
   }
 
   drawSprite(ctx, spriteIndex, x, y, drawSize, rotation, lightFromSun) {
@@ -1318,7 +1410,12 @@ export class Game {
     for (const p of this.planets) maybe(p.name, p.x, p.y, p.radius, "#ffc14a");
     const sp = this.stationPos();
     maybe(this.station.name, sp.x, sp.y, this.station.radius, "#5ce1ff");
-    for (const hole of this.wormholes || []) maybe(hole.name, hole.x, hole.y, hole.radius, "#e56bff");
+    for (const hole of this.wormholes || []) {
+      const s = this.worldToScreen(hole.x, hole.y);
+      if (s.x < 8 || s.x > this.w - 8 || s.y < 8 || s.y > this.h - 8) continue;
+      ctx.fillStyle = "#e56bff";
+      ctx.fillText(hole.name, s.x + hole.radius * this.zoom + 8, s.y);
+    }
     const ghost = this.rocks.find((r) => r.story && !r.gone);
     if (ghost && nextMissionIndex(this.flags) >= 6) {
       maybe("Ghost Vein", ghost.x, ghost.y, ghost.radius, "#e56bff");
@@ -1356,15 +1453,26 @@ export class Game {
     rtx.arc(w / 2, h / 2, 90, 0, Math.PI * 2);
     rtx.stroke();
     const scale = 0.032;
-    const plot = (x, y, color, size = 3) => {
+    const plot = (x, y, color, size = 3, { rim = false } = {}) => {
+      let dx = (x - this.player.x) * scale;
+      let dy = (y - this.player.y) * scale;
+      const reach = Math.hypot(dx, dy);
+      const maxR = 90;
+      if (reach > maxR) {
+        if (!rim) return;
+        dx *= maxR / reach;
+        dy *= maxR / reach;
+      }
       rtx.fillStyle = color;
-      rtx.fillRect(w / 2 + (x - this.player.x) * scale - size / 2, h / 2 + (y - this.player.y) * scale - size / 2, size, size);
+      rtx.fillRect(w / 2 + dx - size / 2, h / 2 + dy - size / 2, size, size);
     };
     plot(0, 0, "#ffc14a", 6);
     for (const p of this.planets) plot(p.x, p.y, p.kind === "gas" ? "#d48cff" : "#7ec8ff", 3);
     const s = this.stationPos();
     plot(s.x, s.y, "#5ce1ff", 4);
-    for (const hole of this.wormholes || []) plot(hole.x, hole.y, "#c45aff", 5);
+    for (const hole of this.wormholes || []) {
+      plot(hole.x, hole.y, "#e56bff", 7, { rim: true });
+    }
     for (const r of this.rocks) {
       if (r.gone) continue;
       if (dist(this.player.x, this.player.y, r.x, r.y) > 1800) continue;
@@ -1395,6 +1503,13 @@ export class Game {
     document.getElementById("credits").textContent = formatCredits(p.credits);
     document.getElementById("fuel").textContent = p.fuel | 0;
     document.getElementById("hold").textContent = `${formatTonnes(cargoMass(p.cargo))} / ${this.ship?.cargo || 24}t`;
+    const gateEl = document.getElementById("gate");
+    if (gateEl) {
+      const nearest = this.nearestWormhole();
+      gateEl.textContent = nearest
+        ? `${nearest.hole.name.replace(/^Gate to /, "")} · ${nearest.d | 0}u`
+        : "none";
+    }
     document.getElementById("clock").textContent = new Date(this.time * 1000).toISOString().substring(14, 19);
     const laser = document.getElementById("laser-state");
     if (laser) laser.textContent = this.mining ? "CUTTING" : this.chips.length ? "TRACTOR" : this.laserHeld() ? "BEAM" : "IDLE";

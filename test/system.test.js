@@ -119,6 +119,12 @@ test("galaxy settings make chained systems and scale planets", () => {
   assert.ok(galaxy.systems[0].wormholes.length >= 1);
   assert.equal(galaxy.systems[0].wormholes[0].target, 1);
   assert.ok(galaxy.systems[1].wormholes.some((w) => w.target === 0));
+  const drift = galaxy.systems[0].planets.find((p) => p.id === "drift");
+  const gate = galaxy.systems[0].wormholes[0];
+  assert.ok(
+    dist(gate.x, gate.y, drift.x, drift.y) < 1200,
+    `Helios gate should sit by Drift, was ${dist(gate.x, gate.y, drift.x, drift.y).toFixed(0)}u`
+  );
   assert.ok(galaxy.systems[0].hostiles.length >= 1);
   assert.ok(galaxy.player.drawSize <= 42);
   assert.equal(galaxy.settings.shipClass, "interceptor");

@@ -31,7 +31,7 @@ test("index and game modules are served", async () => {
   assert.match(html, /SOLAR DRIFT/);
   assert.match(html, /The Claim/);
   assert.match(html, /Start Claim/);
-  assert.match(html, /v=2\.1\.0/);
+  assert.match(html, /v=2\.1\.1/);
   assert.match(html, /World Settings/);
   assert.match(html, /World seed/);
   const logic = await fetch(`http://127.0.0.1:${port}/lib/logic.js`);
