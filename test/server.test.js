@@ -31,7 +31,7 @@ test("index and game modules are served", async () => {
   assert.match(html, /SOLAR DRIFT/);
   assert.match(html, /The Claim/);
   assert.match(html, /Start Claim/);
-  assert.match(html, /v=2\.1\.3/);
+  assert.match(html, /v=2\.1\.4/);
   assert.match(html, /World Settings/);
   assert.match(html, /World seed/);
   assert.match(html, /Galaxy Map/);
@@ -42,6 +42,8 @@ test("index and game modules are served", async () => {
   assert.equal(input.status, 200);
   const map = await fetch(`http://127.0.0.1:${port}/lib/map.js`);
   assert.equal(map.status, 200);
+  const flight = await fetch(`http://127.0.0.1:${port}/lib/flight.js`);
+  assert.equal(flight.status, 200);
   const game = await fetch(`http://127.0.0.1:${port}/js/game.js`);
   assert.equal(game.status, 200);
   const stellar = await fetch(`http://127.0.0.1:${port}/stellar/js/celestial.js`);

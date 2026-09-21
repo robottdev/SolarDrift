@@ -23,7 +23,8 @@ npm test
 
 | Control | Action |
 | --- | --- |
-| W A S D / arrows | Thrust and rotate |
+| W / S | Main thrust and reverse. Hulls keep sliding after you let go |
+| A / D | Strafe. Mouse aims the nose (Q / E yaw if you need it) |
 | Click space | Plot a course (autopilot) |
 | Shift | Boost |
 | X | Brake |
@@ -36,6 +37,8 @@ npm test
 | Esc | Pause / save (closes the galaxy map if it is open) |
 
 The laser is the only hardpoint. It strips the first asteroid in the beam and will also cook a hostile if you point it at one. Scan to assay the vein. Sell at a yard — **Helios Anchorage** over Drift in system zero. Jump gates sit beside the yard as an orange-ringed disc; magenta on radar. File a claim with 2+ solar systems or there is no gate.
+
+Flight is mass-based in the SPAZ sense: the nose tracks the mouse, A/D strafe, and a hauler keeps sliding long after you cut thrust. Bigger hulls are heavier.
 
 ## Minerals & Credits
 

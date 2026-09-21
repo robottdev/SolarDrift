@@ -42,14 +42,27 @@ test("old key+letter tracking would stick A after a Shift chord", () => {
   assert.equal(steerIntent(keys).left, false);
 });
 
-test("A and D together cancel yaw", () => {
+test("A and D together cancel strafe", () => {
   const keys = new Set();
   applyKeyEvent(keys, { code: "KeyA" }, true);
   applyKeyEvent(keys, { code: "KeyD" }, true);
   const intent = steerIntent(keys);
   assert.equal(intent.left, false);
   assert.equal(intent.right, false);
+  assert.equal(intent.strafe, 0);
   assert.equal(intent.turning, false);
+});
+
+test("Q and E yaw the hull when the mouse is not aiming", () => {
+  const keys = new Set();
+  applyKeyEvent(keys, { code: "KeyQ" }, true);
+  const left = steerIntent(keys);
+  assert.equal(left.yaw, -1);
+  assert.equal(left.turning, true);
+  applyKeyEvent(keys, { code: "KeyE" }, true);
+  const both = steerIntent(keys);
+  assert.equal(both.yaw, 0);
+  assert.equal(both.turning, false);
 });
 
 test("typing in an input does not look like flight keys", () => {

@@ -24,15 +24,13 @@ import {
   rockVisualRadius,
   resolvePlayCollisions,
   sellAll,
-  shortestAngle,
   stationPrices,
   stationWorldPos,
-  steerChase,
   tractorStep,
-  wrapAngle,
 } from "/lib/logic.js";
 import { DEFAULT_SETTINGS, SHIP_CLASSES, clampSettings, randomSeedString, shipClassOf, shipLaserDamage } from "/lib/settings.js";
 import { applyKeyEvent, eventTargetsTyping, steerIntent } from "/lib/input.js";
+import { chaseIntent, stepFly } from "/lib/flight.js";
 import { galaxyOverview, gateToward, hitOverviewNode, projectOverview } from "/lib/map.js";
 import { AudioEngine } from "./audio.js";
 import { CALLSIGN, DIALOGUE, ENDING, INTRO, MISSIONS, TITLE } from "./data.js";
@@ -69,7 +67,9 @@ export class Game {
     this.dialogue = null;
     this.mode = "title";
     this.last = 0;
-    this.zoom = 1;
+    this.zoom = 0.72;
+    this.cam = { x: 0, y: 0 };
+    this.pointer = null;
     this.prices = stationPrices(1);
     this.cutHeld = false;
     this.chips = [];
@@ -119,6 +119,13 @@ export class Game {
       this.player.nav = world;
       this.toast(`Course plotted: ${world.x | 0}, ${world.y | 0}`);
       this.audio.ui();
+    });
+    this.view.addEventListener("mousemove", (e) => {
+      if (this.mode !== "play") return;
+      this.pointer = { x: e.offsetX, y: e.offsetY };
+    });
+    this.view.addEventListener("mouseleave", () => {
+      this.pointer = null;
     });
     this.view.addEventListener(
       "wheel",
@@ -278,7 +285,7 @@ export class Game {
       this.generateMain(settings, opts);
     };
     try {
-      const worker = new Worker("/js/worker.js?v=2.1.3", { type: "module" });
+      const worker = new Worker("/js/worker.js?v=2.1.4", { type: "module" });
       const id = 1;
       const timer = setTimeout(() => {
         worker.terminate();
@@ -417,9 +424,11 @@ export class Game {
       this.player.heading = origin.heading || sys.playerHeading || 0;
       this.player.vx = 0;
       this.player.vy = 0;
+      this.player.omega = 0;
       this.player.nav = null;
     }
     this.syncHud();
+    this.snapCam();
   }
 
   setLoad(msg) {
@@ -494,6 +503,7 @@ export class Game {
       heading: origin.heading || this.scene?.playerHeading || 0,
       vx: 0,
       vy: 0,
+      omega: 0,
       hull: ship.hull,
       maxHull: ship.hull,
       fuel: this.settings?.startingFuel ?? STARTING_FUEL,
@@ -934,6 +944,7 @@ export class Game {
       if (this.toastTimer <= 0) document.getElementById("toast").classList.add("hidden");
     }
     this.steerPlayer(dt);
+    this.updateCam(dt);
     this.updateMotion(dt);
     this.updateMining(dt);
     this.updateChips(dt);
@@ -952,53 +963,58 @@ export class Game {
     this.shake = Math.max(0, this.shake - dt * 8);
   }
 
+  snapCam() {
+    const p = this.player;
+    if (!p) return;
+    this.cam.x = p.x;
+    this.cam.y = p.y;
+  }
+
+  updateCam(dt) {
+    const p = this.player;
+    if (!p || !this.cam) return;
+    const look = 0.22;
+    const tx = p.x + p.vx * look;
+    const ty = p.y + p.vy * look;
+    const k = 1 - Math.exp(-3.15 * dt);
+    this.cam.x += (tx - this.cam.x) * k;
+    this.cam.y += (ty - this.cam.y) * k;
+  }
+
   steerPlayer(dt) {
     const p = this.player;
     const ship = this.ship || shipClassOf(this.settings);
-    const rot = ship.turn || 2.5;
     const intent = steerIntent(this.keys);
-    if (intent.left) p.heading -= rot * dt;
-    if (intent.right) p.heading += rot * dt;
-    p.heading = wrapAngle(p.heading);
 
-    if (intent.turning && p.nav) p.nav = null;
+    if ((intent.strafe || intent.yaw || intent.back) && p.nav) p.nav = null;
 
-    if (p.nav) {
-      const desired = Math.atan2(p.nav.x - p.x, p.y - p.nav.y);
-      const delta = shortestAngle(p.heading, desired);
-      p.heading = wrapAngle(p.heading + clamp(delta, -rot * dt, rot * dt));
-      if (dist(p.x, p.y, p.nav.x, p.nav.y) < 36) p.nav = null;
-    }
+    if (p.nav && dist(p.x, p.y, p.nav.x, p.nav.y) < 48) p.nav = null;
 
-    const boost = intent.boost;
-    const accel = (boost ? ship.accel * 1.65 : ship.accel) * dt;
-    const fwd = headingVector(p.heading);
-    const thrusting = intent.forward || Boolean(p.nav);
-    const reverse = intent.back;
-    p.thrusting = thrusting;
-    if (thrusting) {
-      p.vx += fwd.x * accel;
-      p.vy += fwd.y * accel;
-      this.burst(p.x - fwd.x * 18, p.y - fwd.y * 18, Math.atan2(fwd.y, fwd.x) + Math.PI, "#5ce1ff", 2);
+    const flyIntent = {
+      forward: intent.forward || Boolean(p.nav),
+      back: intent.back,
+      boost: intent.boost,
+      brake: intent.brake,
+      strafe: intent.strafe,
+      yaw: intent.yaw,
+    };
+    let aim = null;
+    if (p.nav) aim = p.nav;
+    else if (this.pointer && this.mode === "play") aim = this.screenToWorld(this.pointer.x, this.pointer.y);
+
+    const next = stepFly(p, flyIntent, ship, dt, aim);
+    p.heading = next.heading;
+    p.omega = next.omega;
+    p.vx = next.vx;
+    p.vy = next.vy;
+    p.x = next.x;
+    p.y = next.y;
+    p.thrusting = next.thrusting;
+    if (next.thrusting) {
+      const fwd = headingVector(p.heading);
+      const heat = intent.boost ? "#ff9a3a" : "#e06a24";
+      this.burst(p.x - fwd.x * (p.radius + 6), p.y - fwd.y * (p.radius + 6), Math.atan2(fwd.y, fwd.x) + Math.PI, heat, intent.boost ? 4 : 2);
     }
-    if (reverse) {
-      p.vx -= fwd.x * accel * 0.45;
-      p.vy -= fwd.y * accel * 0.45;
-    }
-    if (intent.brake) {
-      p.vx *= Math.exp(-2.6 * dt);
-      p.vy *= Math.exp(-2.6 * dt);
-    }
-    p.vx *= Math.exp(-0.32 * dt);
-    p.vy *= Math.exp(-0.32 * dt);
-    const cap = boost ? ship.boostSpeed : ship.speed;
-    const sp = Math.hypot(p.vx, p.vy);
-    if (sp > cap) {
-      p.vx *= cap / sp;
-      p.vy *= cap / sp;
-    }
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
     this.bounceWorld(p, dt);
   }
 
@@ -1053,10 +1069,26 @@ export class Game {
       n.y = bounced.y;
     }
     const p = this.player;
+    const hostileShip = {
+      mass: 1.45,
+      inertia: 1.4,
+      thrust: 210,
+      strafeThrust: 90,
+      turnTorque: 5.2,
+      maxOmega: 2.35,
+      speed: 0,
+      boostSpeed: 0,
+      drag: 0.18,
+      angDrag: 2.8,
+      aimGain: 6.4,
+      aimDamp: 2.2,
+    };
     for (let i = 0; i < (this.hostiles || []).length; i++) {
       const h = this.hostiles[i];
       if (h.gone) continue;
-      const next = steerChase(h, p.x, p.y, dt, 2.1, h.speed || 55);
+      const cruise = h.speed || 50;
+      const spec = { ...hostileShip, speed: cruise, boostSpeed: cruise * 1.15 };
+      const next = stepFly(h, chaseIntent(h, p.x, p.y), spec, dt, { x: p.x, y: p.y });
       const bounced = resolvePlayCollisions(next, this.rocks, this.npcs);
       this.hostiles[i] = { ...next, x: bounced.x, y: bounced.y, vx: bounced.vx, vy: bounced.vy };
     }
@@ -1412,28 +1444,28 @@ export class Game {
   }
 
   screenToWorld(sx, sy) {
-    const p = this.player || { x: 0, y: 0 };
+    const c = this.cam || this.player || { x: 0, y: 0 };
     return {
-      x: (sx - this.w / 2) / this.zoom + p.x,
-      y: (sy - this.h / 2) / this.zoom + p.y,
+      x: (sx - this.w / 2) / this.zoom + c.x,
+      y: (sy - this.h / 2) / this.zoom + c.y,
     };
   }
 
   worldToScreen(x, y) {
-    const p = this.player || { x: 0, y: 0 };
+    const c = this.cam || this.player || { x: 0, y: 0 };
     return {
-      x: (x - p.x) * this.zoom + this.w / 2,
-      y: (y - p.y) * this.zoom + this.h / 2,
+      x: (x - c.x) * this.zoom + this.w / 2,
+      y: (y - c.y) * this.zoom + this.h / 2,
     };
   }
 
   draw() {
     if (!this.w) this.resize();
     const ctx = this.ctx;
-    ctx.fillStyle = "#05010a";
+    ctx.fillStyle = "#020104";
     ctx.fillRect(0, 0, this.w, this.h);
     if (!this.ready || !this.player) {
-      ctx.fillStyle = "#5ce1ff";
+      ctx.fillStyle = "#6e9e8c";
       ctx.font = "16px Share Tech Mono, monospace";
       ctx.fillText("Generating galaxy…", 24, 40);
       return;
@@ -1469,6 +1501,7 @@ export class Game {
     this.drawLaser(ctx);
     this.drawTractor(ctx);
     this.drawChips(ctx);
+    this.drawThrusters(ctx);
     this.drawSprite(ctx, this.galaxy?.player?.spriteIndex ?? this.scene.player.spriteIndex, this.player.x, this.player.y, this.player.drawSize, this.player.heading, false);
     for (const q of this.particles) {
       ctx.globalAlpha = clamp(q.life * 2, 0, 1);
@@ -1481,6 +1514,7 @@ export class Game {
     this.drawGateMarkers(ctx);
     ctx.restore();
     this.drawVignette(ctx);
+    this.drawReticle(ctx);
     this.drawRadar();
   }
 
@@ -1489,8 +1523,8 @@ export class Game {
     if (!bg) return;
     const tw = bg.width;
     const th = bg.height;
-    const ox = Math.round(((this.player.x * 0.035) % tw + tw) % tw);
-    const oy = Math.round(((this.player.y * 0.035) % th + th) % th);
+    const ox = Math.round((((this.cam?.x ?? this.player.x) * 0.02) % tw + tw) % tw);
+    const oy = Math.round((((this.cam?.y ?? this.player.y) * 0.02) % th + th) % th);
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     for (let y = -oy; y < this.h; y += th) {
@@ -1503,9 +1537,9 @@ export class Game {
     const s = this.worldToScreen(0, 0);
     const glowR = (this.scene.sun.drawSize * 0.55) * this.zoom;
     const glow = ctx.createRadialGradient(s.x, s.y, glowR * 0.18, s.x, s.y, glowR);
-    glow.addColorStop(0, "rgba(255, 230, 170, 0.22)");
-    glow.addColorStop(0.45, "rgba(255, 180, 80, 0.08)");
-    glow.addColorStop(1, "rgba(255, 140, 40, 0)");
+    glow.addColorStop(0, "rgba(255, 196, 120, 0.12)");
+    glow.addColorStop(0.45, "rgba(180, 90, 40, 0.06)");
+    glow.addColorStop(1, "rgba(40, 12, 4, 0)");
     ctx.fillStyle = glow;
     ctx.beginPath();
     ctx.arc(s.x, s.y, glowR, 0, Math.PI * 2);
@@ -1572,6 +1606,47 @@ export class Game {
       if (ly > this.h - 8) ly = this.h - 8;
       ctx.fillText(label, lx, ly);
     }
+  }
+
+  drawThrusters(ctx) {
+    const p = this.player;
+    if (!p) return;
+    const keys = steerIntent(this.keys);
+    if (!p.thrusting && !keys.strafe && !keys.back) return;
+    const fwd = headingVector(p.heading);
+    const s = this.worldToScreen(p.x - fwd.x * (p.radius * 0.85), p.y - fwd.y * (p.radius * 0.85));
+    const r = Math.max(10, p.drawSize * 0.22 * this.zoom);
+    const glow = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, r * (p.thrusting ? 2.4 : 1.4));
+    glow.addColorStop(0, "rgba(255, 210, 140, 0.85)");
+    glow.addColorStop(0.35, "rgba(255, 110, 32, 0.4)");
+    glow.addColorStop(1, "rgba(255, 60, 10, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, r * 2.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  drawReticle(ctx) {
+    if (this.mode !== "play" || !this.pointer) return;
+    const x = this.pointer.x;
+    const y = this.pointer.y;
+    ctx.save();
+    ctx.strokeStyle = "rgba(212, 137, 58, 0.8)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, 11, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x - 16, y);
+    ctx.lineTo(x - 5, y);
+    ctx.moveTo(x + 5, y);
+    ctx.lineTo(x + 16, y);
+    ctx.moveTo(x, y - 16);
+    ctx.lineTo(x, y - 5);
+    ctx.moveTo(x, y + 5);
+    ctx.lineTo(x, y + 16);
+    ctx.stroke();
+    ctx.restore();
   }
 
   drawSprite(ctx, spriteIndex, x, y, drawSize, rotation, lightFromSun) {
@@ -1709,15 +1784,16 @@ export class Game {
   }
 
   drawVignette(ctx) {
-    const g = ctx.createRadialGradient(this.w / 2, this.h / 2, this.h * 0.2, this.w / 2, this.h / 2, this.h * 0.75);
+    const g = ctx.createRadialGradient(this.w / 2, this.h / 2, this.h * 0.16, this.w / 2, this.h / 2, this.h * 0.82);
     g.addColorStop(0, "rgba(0,0,0,0)");
-    g.addColorStop(1, "rgba(0,0,0,0.45)");
+    g.addColorStop(0.65, "rgba(0,0,0,0.28)");
+    g.addColorStop(1, "rgba(0,0,0,0.72)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, this.w, this.h);
-    ctx.fillStyle = "#5ce1ff";
+    ctx.fillStyle = "#c9a36a";
     ctx.font = "13px Share Tech Mono, monospace";
     ctx.fillText(TITLE, 16, 22);
-    ctx.fillStyle = "#7f93b8";
+    ctx.fillStyle = "#6e675c";
     const p = this.player;
     const star = this.scene?.starName || "Helios";
     const hullName = this.ship?.name || "Hauler";

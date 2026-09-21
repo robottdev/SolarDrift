@@ -612,13 +612,16 @@ export function generateBackground(params) {
   const veins = new Perlin(frequency * 0.55, 2.2, 0.55, Math.max(3, octaves - 1), seed + 17, QualityMode.Low);
   const dust = new RidgedMultifractal(frequency * 3.1, 2.1, Math.min(6, octaves), seed + 3, QualityMode.Low);
   const tex = new SpriteTexture(width, height);
+  const voidCol = params.voidColor || new Color(0.008, 0.007, 0.012, 1);
+  const rust = params.secondary || new Color(0.38, 0.12, 0.05, 1);
+  const contrast = params.contrast || 2.45;
   const accent = new Color(
-    clamp01(0.55 + tint.b * 0.45),
-    clamp01(tint.r * 0.25 + 0.12),
-    clamp01(0.75 + tint.g * 0.2),
+    clamp01(0.22 + tint.g * 0.35),
+    clamp01(0.28 + tint.b * 0.25),
+    clamp01(0.24 + tint.r * 0.18),
     1
   );
-  const core = mixColor(tint, Color.white, 0.35);
+  const core = mixColor(tint, new Color(0.55, 0.42, 0.28, 1), 0.22);
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -626,11 +629,14 @@ export function generateBackground(params) {
       const n2 = clamp01((seamlessNoise((px, py) => nebula2.getValue(px * 0.72, 4, py * 0.72), x, y, width, height) + 1) * 0.5);
       const n3 = clamp01((seamlessNoise((px, py) => veins.getValue(px, py, 0), x, y, width, height) + 1) * 0.5);
       const d = clamp01((seamlessNoise((px, py) => dust.getValue(px, py, 0), x, y, width, height) + 1) * 0.5);
-      const blob = Math.pow(n1, 1.35);
-      let col = mixColor(new Color(0.012, 0.016, 0.045, 1), tint, blob * brightness);
-      col = mixColor(col, accent, Math.pow(n2, 1.6) * brightness * 0.5);
-      col = mixColor(col, core, Math.pow(n3, 2.2) * brightness * 0.28);
-      col = mixColor(col, Color.black, d * 0.32);
+      const blob = Math.pow(n1, contrast);
+      const wisps = Math.pow(n2, contrast + 0.35);
+      const filament = Math.pow(n3, contrast + 0.7);
+      let col = mixColor(voidCol, tint, blob * brightness);
+      col = mixColor(col, rust, wisps * brightness * 0.72);
+      col = mixColor(col, accent, wisps * brightness * 0.22);
+      col = mixColor(col, core, filament * brightness * 0.18);
+      col = mixColor(col, Color.black, d * 0.55);
       col.a = 1;
       tex.setPixel(x, y, col);
     }
@@ -660,11 +666,11 @@ export function generateBackground(params) {
         : warm > 0.45 && warm < 0.52
           ? new Color(1, 0.92, 0.75, 1)
           : Color.white;
-    const coreA = 0.55 + mag * 0.7;
+    const coreA = 0.28 + mag * 0.42;
     paint(x, y, col, coreA);
     if (mag > 0.55) {
       const glowR = 1.2 + mag * 2.0;
-      const glowCol = new Color(col.r, col.g, col.b, 0.38 * mag);
+      const glowCol = new Color(col.r, col.g, col.b, 0.22 * mag);
       stampGlowWrapped(tex, x, y, glowR, glowCol);
     }
     if (mag > 0.86) {

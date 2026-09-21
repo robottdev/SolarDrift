@@ -324,13 +324,16 @@ function generateHeliosLayout({ seed, push, settings }) {
     seed: seed + 19,
     width: TEX.background,
     height: TEX.background,
-    frequency: 0.02,
-    lacunarity: 2.1,
-    persistence: 0.48,
-    octaves: 4,
-    starCount: 180,
-    tint: new Color(0.18, 0.22, 0.48, 1),
-    brightness: 0.44,
+    frequency: 0.0095,
+    lacunarity: 2.05,
+    persistence: 0.52,
+    octaves: 5,
+    starCount: 72,
+    tint: new Color(0.07, 0.2, 0.18, 1),
+    secondary: new Color(0.42, 0.12, 0.05, 1),
+    brightness: 0.26,
+    contrast: 2.55,
+    voidColor: new Color(0.006, 0.005, 0.01, 1),
   });
   const background = { spriteIndex: push(bgTex), width: TEX.background, height: TEX.background };
 
@@ -554,6 +557,9 @@ function placeNpc(rand, occupancy, name, spriteIndex, drawSize, radius, near, ex
     x: pos.x,
     y: pos.y,
     heading: rand() * Math.PI * 2,
+    vx: extra.vx ?? 0,
+    vy: extra.vy ?? 0,
+    omega: extra.omega ?? 0,
     speed: extra.speed ?? (name.startsWith("Patrol") || extra.hostile ? 28 : 22),
     hostile: Boolean(extra.hostile),
     hull: extra.hull ?? (extra.hostile ? 40 : 0),
@@ -570,7 +576,7 @@ function finishHeliosShips(layout, push, seed, settings, ship, hostileSprites) {
     shipType: 1,
     bodyDetail: 0.04,
     wingDetail: 0.07,
-    colors: [new Color(0.5, 0.52, 0.55, 1), new Color(0.85, 0.45, 0.12, 1)],
+    colors: [new Color(0.36, 0.34, 0.32, 1), new Color(0.78, 0.38, 0.12, 1)],
     colorDetail: 0.06,
   }).texture;
   const npcB = generateShip({
@@ -578,22 +584,25 @@ function finishHeliosShips(layout, push, seed, settings, ship, hostileSprites) {
     shipType: 0,
     bodyDetail: 0.03,
     wingDetail: 0.08,
-    colors: [new Color(0.62, 0.64, 0.68, 1), new Color(0.2, 0.55, 0.35, 1)],
+    colors: [new Color(0.32, 0.34, 0.3, 1), new Color(0.18, 0.42, 0.28, 1)],
     colorDetail: 0.07,
   }).texture;
-  npcs.push(placeNpc(rand, occupancy, "Hauler 11", push(npcA), 52, 20, drift));
-  npcs.push(placeNpc(rand, occupancy, "Patrol 4", push(npcB), 44, 16, planets[0]));
+  npcs.push(placeNpc(rand, occupancy, "Hauler 11", push(npcA), 78, 26, drift));
+  npcs.push(placeNpc(rand, occupancy, "Patrol 4", push(npcB), 68, 22, planets[0]));
 
   const want = hostileCountFor(settings.hostileDensity, 0);
   for (let i = 0; i < want; i++) {
     const near = planets[i % planets.length];
     const spr = hostileSprites[i % hostileSprites.length];
     hostiles.push(
-      placeNpc(rand, occupancy, `Raider ${i + 1}`, spr, 44, 15, near, {
+      placeNpc(rand, occupancy, `Raider ${i + 1}`, spr, 70, 22, near, {
         hostile: true,
-        speed: 52 + (i % 3) * 10,
+        speed: 48 + (i % 3) * 8,
         hull: 28 + i * 4,
         id: `raider-${i}`,
+        vx: 0,
+        vy: 0,
+        omega: 0,
       })
     );
   }
@@ -623,13 +632,16 @@ function generateRemoteSystem({ seed, index, push, settings, mineralSprites, hos
     seed: seed + 19,
     width: TEX.background,
     height: TEX.background,
-    frequency: 0.018 + index * 0.002,
-    lacunarity: 2.1,
-    persistence: 0.45,
-    octaves: 4,
-    starCount: 160 + index * 12,
-    tint: new Color(0.12 + (index % 3) * 0.04, 0.16, 0.38 + (index % 2) * 0.08, 1),
-    brightness: 0.4,
+    frequency: 0.0088 + index * 0.0012,
+    lacunarity: 2.05,
+    persistence: 0.5,
+    octaves: 5,
+    starCount: 58 + index * 8,
+    tint: new Color(0.1 + (index % 3) * 0.03, 0.08, 0.2 + (index % 2) * 0.06, 1),
+    secondary: new Color(0.36, 0.08 + (index % 2) * 0.04, 0.07, 1),
+    brightness: 0.23,
+    contrast: 2.6,
+    voidColor: new Color(0.005, 0.004, 0.01, 1),
   });
   const background = { spriteIndex: push(bgTex), width: TEX.background, height: TEX.background };
   const planets = buildPlanets(remotePlanetSpecs(seed, settings.planetDensity, rand), rand, push, lightAngle);
@@ -727,11 +739,14 @@ function generateRemoteSystem({ seed, index, push, settings, mineralSprites, hos
   for (let i = 0; i < want; i++) {
     const near = planets[i % planets.length];
     hostiles.push(
-      placeNpc(rand, occupancy, `${starName} Raider ${i + 1}`, hostileSprites[i % hostileSprites.length], 44, 15, near, {
+      placeNpc(rand, occupancy, `${starName} Raider ${i + 1}`, hostileSprites[i % hostileSprites.length], 70, 22, near, {
         hostile: true,
-        speed: 55 + (i % 4) * 8,
+        speed: 50 + (i % 4) * 7,
         hull: 32 + i * 5,
         id: `sys${index}-raider-${i}`,
+        vx: 0,
+        vy: 0,
+        omega: 0,
       })
     );
   }
@@ -821,7 +836,7 @@ function makeHostileSprites(seed, push) {
     shipType: 0,
     bodyDetail: 0.04,
     wingDetail: 0.07,
-    colors: [new Color(0.42, 0.18, 0.16, 1), new Color(0.9, 0.22, 0.12, 1)],
+    colors: [new Color(0.22, 0.12, 0.1, 1), new Color(0.78, 0.2, 0.1, 1)],
     colorDetail: 0.07,
   }).texture;
   const b = generateShip({
@@ -829,7 +844,7 @@ function makeHostileSprites(seed, push) {
     shipType: 1,
     bodyDetail: 0.04,
     wingDetail: 0.08,
-    colors: [new Color(0.28, 0.22, 0.2, 1), new Color(0.95, 0.55, 0.12, 1)],
+    colors: [new Color(0.16, 0.14, 0.12, 1), new Color(0.82, 0.42, 0.1, 1)],
     colorDetail: 0.06,
   }).texture;
   return [push(a), push(b)];
@@ -851,7 +866,7 @@ export function generateGalaxy(rawSettings = {}, opts = {}) {
     shipType: shipSpec.shipType,
     bodyDetail: 0.04,
     wingDetail: 0.06,
-    colors: [new Color(0.68, 0.72, 0.76, 1), new Color(0.22, 0.78, 0.92, 1)],
+    colors: [new Color(0.34, 0.33, 0.31, 1), new Color(0.72, 0.38, 0.14, 1)],
     colorDetail: 0.07,
   });
   const ship = {

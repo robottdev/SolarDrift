@@ -31,7 +31,8 @@ test("Helios system generates a belt, station, and Ghost Vein", () => {
   assert.equal(scene.sprites[bruise.spriteIndex].width, 320);
   const moon = drift.moons[0];
   assert.equal(scene.sprites[moon.spriteIndex].width, 160);
-  assert.ok(scene.player.drawSize < 60);
+  assert.ok(scene.player.drawSize < 110);
+  assert.ok(scene.player.drawSize >= 64);
   for (const rock of scene.rocks) {
     const tex = scene.sprites[rock.spriteIndex];
     assert.equal(tex.width, 128);
@@ -42,7 +43,7 @@ test("Helios system generates a belt, station, and Ghost Vein", () => {
   assert.ok(scene.player.drawSize < drift.drawSize);
   assert.ok(scene.station.drawSize <= scene.sprites[scene.station.spriteIndex].width);
   for (const n of scene.npcs) {
-    assert.ok(n.drawSize <= 52);
+    assert.ok(n.drawSize <= 90);
     assert.ok(n.drawSize < scene.station.drawSize);
   }
 });
@@ -126,6 +127,6 @@ test("galaxy settings make chained systems and scale planets", () => {
     `Helios gate should sit by Drift, was ${dist(gate.x, gate.y, drift.x, drift.y).toFixed(0)}u`
   );
   assert.ok(galaxy.systems[0].hostiles.length >= 1);
-  assert.ok(galaxy.player.drawSize <= 42);
+  assert.ok(galaxy.player.drawSize <= 80);
   assert.equal(galaxy.settings.shipClass, "interceptor");
 });
