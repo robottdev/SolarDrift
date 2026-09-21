@@ -15,7 +15,7 @@
       href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=IBM+Plex+Sans:wght@400;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/style.css?v=2.1.2" />
+    <link rel="stylesheet" href="/css/style.css?v=2.1.3" />
   </head>
   <body>
     <div class="scanlines" aria-hidden="true"></div>
@@ -112,6 +112,7 @@
           <li><kbd>V</kbd> scan nearest rock · <kbd>C</kbd> hail station or PIP</li>
           <li><kbd>T</kbd> sell the hold at a yard (must be in dock range)</li>
           <li><kbd>J</kbd> / <kbd>JUMP</kbd> — lock a course to the yard gate, then jump when you are in the orange ring</li>
+          <li><kbd>M</kbd> / <kbd>MAP</kbd> — galaxy chart. Systems and wormhole lanes. Click a linked star to lock its gate. Esc closes</li>
           <li>Currency is <strong>Credits (CR)</strong>. Yards pay posted rates per tonne</li>
           <li>Hold size and cutter rate follow ship class. Haulers mine. Fighters can, just worse.</li>
           <li>Ice, iron, titanium, platinum-family, then the magenta Ghost Vein in Helios</li>
@@ -189,6 +190,7 @@
           <button data-act="scan">SCAN</button>
           <button data-act="sell">SELL</button>
           <button data-act="jump">JUMP</button>
+          <button data-act="map">MAP</button>
           <button id="btn-cut" type="button">CUT</button>
           <button data-act="pause">II</button>
         </section>
@@ -207,6 +209,23 @@
           <p class="who" id="who"></p>
           <p class="line" id="line"></p>
           <div id="choices" class="choices"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="galaxy" class="overlay hidden">
+      <div class="galaxy-card">
+        <header class="galaxy-head">
+          <div>
+            <p class="eyebrow">Nav chart</p>
+            <h2>Galaxy Map</h2>
+          </div>
+          <p class="galaxy-hint"><kbd>M</kbd> / <kbd>Esc</kbd> close · click a linked star to lock its gate</p>
+        </header>
+        <canvas id="galaxy-view"></canvas>
+        <p class="galaxy-status" id="galaxy-status">Charting the claim…</p>
+        <div class="title-actions">
+          <button id="btn-galaxy-close" class="primary">Close Chart</button>
         </div>
       </div>
     </section>
@@ -239,6 +258,6 @@
       </div>
     </section>
 
-    <script type="module" src="/js/main.js?v=2.1.2"></script>
+    <script type="module" src="/js/main.js?v=2.1.3"></script>
   </body>
 </html>
