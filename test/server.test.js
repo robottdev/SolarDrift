@@ -31,11 +31,13 @@ test("index and game modules are served", async () => {
   assert.match(html, /SOLAR DRIFT/);
   assert.match(html, /The Claim/);
   assert.match(html, /Start Claim/);
-  assert.match(html, /v=2\.1\.1/);
+  assert.match(html, /v=2\.1\.2/);
   assert.match(html, /World Settings/);
   assert.match(html, /World seed/);
   const logic = await fetch(`http://127.0.0.1:${port}/lib/logic.js`);
   assert.equal(logic.status, 200);
+  const input = await fetch(`http://127.0.0.1:${port}/lib/input.js`);
+  assert.equal(input.status, 200);
   const game = await fetch(`http://127.0.0.1:${port}/js/game.js`);
   assert.equal(game.status, 200);
   const stellar = await fetch(`http://127.0.0.1:${port}/stellar/js/celestial.js`);

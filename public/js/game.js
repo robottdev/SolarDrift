@@ -32,6 +32,7 @@ import {
   wrapAngle,
 } from "/lib/logic.js";
 import { DEFAULT_SETTINGS, SHIP_CLASSES, clampSettings, randomSeedString, shipClassOf, shipLaserDamage } from "/lib/settings.js";
+import { applyKeyEvent, eventTargetsTyping, steerIntent } from "/lib/input.js";
 import { AudioEngine } from "./audio.js";
 import { CALLSIGN, DIALOGUE, ENDING, INTRO, MISSIONS, TITLE } from "./data.js";
 
@@ -88,20 +89,23 @@ export class Game {
 
   bind() {
     window.addEventListener("keydown", (e) => {
-      this.keys.add(e.key);
-      this.keys.add(e.code);
+      if (eventTargetsTyping(e.target)) return;
+      applyKeyEvent(this.keys, e, true);
       if ([" ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key) || e.code === "Space") {
         e.preventDefault();
       }
-      if (this.mode === "play") this.handleKey(e);
+      if (this.mode === "play" && !e.repeat) this.handleKey(e);
     });
     window.addEventListener("keyup", (e) => {
-      this.keys.delete(e.key);
-      this.keys.delete(e.code);
-      if (e.key === " " || e.code === "Space") {
+      applyKeyEvent(this.keys, e, false);
+      if (e.code === "Space") {
         this.cutHeld = false;
         this.audio.stopLaser();
       }
+    });
+    window.addEventListener("blur", () => this.clearHeld());
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) this.clearHeld();
     });
     this.view.addEventListener("mousedown", (e) => {
       if (this.mode !== "play" || !this.player) return;
@@ -156,6 +160,12 @@ export class Game {
       cut.addEventListener("pointercancel", up);
       cut.addEventListener("lostpointercapture", up);
     }
+  }
+
+  clearHeld() {
+    this.keys.clear();
+    this.cutHeld = false;
+    this.audio.stopLaser();
   }
 
   bindSetup() {
@@ -253,7 +263,7 @@ export class Game {
       this.generateMain(settings, opts);
     };
     try {
-      const worker = new Worker("/js/worker.js?v=2.1.1", { type: "module" });
+      const worker = new Worker("/js/worker.js?v=2.1.2", { type: "module" });
       const id = 1;
       const timer = setTimeout(() => {
         worker.terminate();
@@ -422,7 +432,9 @@ export class Game {
       document.getElementById("game").classList.remove("hidden");
     }
     this.mode = mode === "game" ? "play" : mode;
+    if (this.mode !== "play") this.clearHeld();
     if (mode === "play") {
+      this.clearHeld();
       this.resize();
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       this.view.focus();
@@ -826,9 +838,12 @@ export class Game {
     const p = this.player;
     const ship = this.ship || shipClassOf(this.settings);
     const rot = ship.turn || 2.5;
-    if (this.keys.has("a") || this.keys.has("A") || this.keys.has("ArrowLeft")) p.heading -= rot * dt;
-    if (this.keys.has("d") || this.keys.has("D") || this.keys.has("ArrowRight")) p.heading += rot * dt;
+    const intent = steerIntent(this.keys);
+    if (intent.left) p.heading -= rot * dt;
+    if (intent.right) p.heading += rot * dt;
     p.heading = wrapAngle(p.heading);
+
+    if (intent.turning && p.nav) p.nav = null;
 
     if (p.nav) {
       const desired = Math.atan2(p.nav.x - p.x, p.y - p.nav.y);
@@ -837,12 +852,11 @@ export class Game {
       if (dist(p.x, p.y, p.nav.x, p.nav.y) < 36) p.nav = null;
     }
 
-    const boost = this.keys.has("Shift") || this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
+    const boost = intent.boost;
     const accel = (boost ? ship.accel * 1.65 : ship.accel) * dt;
     const fwd = headingVector(p.heading);
-    const thrusting =
-      this.keys.has("w") || this.keys.has("W") || this.keys.has("ArrowUp") || Boolean(p.nav);
-    const reverse = this.keys.has("s") || this.keys.has("S") || this.keys.has("ArrowDown");
+    const thrusting = intent.forward || Boolean(p.nav);
+    const reverse = intent.back;
     p.thrusting = thrusting;
     if (thrusting) {
       p.vx += fwd.x * accel;
@@ -853,7 +867,7 @@ export class Game {
       p.vx -= fwd.x * accel * 0.45;
       p.vy -= fwd.y * accel * 0.45;
     }
-    if (this.keys.has("x") || this.keys.has("X") || this.keys.has("Control")) {
+    if (intent.brake) {
       p.vx *= Math.exp(-2.6 * dt);
       p.vy *= Math.exp(-2.6 * dt);
     }
@@ -931,7 +945,7 @@ export class Game {
   }
 
   laserHeld() {
-    return this.cutHeld || this.keys.has(" ") || this.keys.has("Space") || this.keys.has("Spacebar");
+    return this.cutHeld || steerIntent(this.keys).laser;
   }
 
   updateMining(dt) {
