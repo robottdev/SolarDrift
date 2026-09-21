@@ -498,6 +498,75 @@ kbd {
   gap: 10px;
 }
 
+#galaxy {
+  z-index: 22;
+  background: radial-gradient(circle at 50% 28%, rgba(18, 28, 52, 0.92), rgba(5, 6, 12, 0.96) 72%);
+}
+
+.galaxy-card {
+  width: min(980px, calc(100vw - 24px));
+  height: min(740px, calc(100vh - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--line);
+  box-shadow: 0 0 0 4px rgba(12, 18, 32, 0.9), 0 0 40px rgba(229, 107, 255, 0.12);
+  background: linear-gradient(180deg, #10182c, #0a1020);
+  padding: 20px 22px 18px;
+}
+
+.galaxy-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.galaxy-head h2 {
+  margin: 4px 0 0;
+}
+
+.galaxy-hint {
+  margin: 0;
+  color: var(--dim);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.4;
+  max-width: 420px;
+  text-align: right;
+}
+
+#galaxy-view {
+  flex: 1;
+  width: 100%;
+  min-height: 320px;
+  background: #05070f;
+  border: 1px solid var(--line);
+  cursor: default;
+}
+
+.galaxy-status {
+  margin: 0;
+  min-height: 1.4em;
+  color: var(--amber);
+  letter-spacing: 0.06em;
+  font-size: 13px;
+}
+
+.galaxy-card .title-actions {
+  margin-top: 0;
+}
+
+@media (max-width: 700px) {
+  .galaxy-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .galaxy-hint {
+    text-align: left;
+  }
+}
+
 @media (max-width: 900px) {
   #game {
     grid-template-columns: minmax(0, 1fr);

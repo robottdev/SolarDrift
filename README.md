@@ -32,7 +32,8 @@ npm test
 | C | Hail Anchorage (or PIP) |
 | T | Sell the hold at dock |
 | J / JUMP | Lock a course to the yard gate, then jump when you are in the orange ring |
-| Esc | Pause / save |
+| M / MAP | Galaxy chart — systems and wormhole lanes. Click a linked star to lock its gate |
+| Esc | Pause / save (closes the galaxy map if it is open) |
 
 The laser is the only hardpoint. It strips the first asteroid in the beam and will also cook a hostile if you point it at one. Scan to assay the vein. Sell at a yard — **Helios Anchorage** over Drift in system zero. Jump gates sit beside the yard as an orange-ringed disc; magenta on radar. File a claim with 2+ solar systems or there is no gate.
 

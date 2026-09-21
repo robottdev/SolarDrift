@@ -33,6 +33,7 @@ import {
 } from "/lib/logic.js";
 import { DEFAULT_SETTINGS, SHIP_CLASSES, clampSettings, randomSeedString, shipClassOf, shipLaserDamage } from "/lib/settings.js";
 import { applyKeyEvent, eventTargetsTyping, steerIntent } from "/lib/input.js";
+import { galaxyOverview, gateToward, hitOverviewNode, projectOverview } from "/lib/map.js";
 import { AudioEngine } from "./audio.js";
 import { CALLSIGN, DIALOGUE, ENDING, INTRO, MISSIONS, TITLE } from "./data.js";
 
@@ -53,8 +54,10 @@ export class Game {
     this.audio = new AudioEngine();
     this.view = document.getElementById("view");
     this.radar = document.getElementById("radar");
+    this.galaxyView = document.getElementById("galaxy-view");
     this.ctx = this.view.getContext("2d");
     this.rtx = this.radar.getContext("2d");
+    this.gctx = this.galaxyView ? this.galaxyView.getContext("2d") : null;
     this.keys = new Set();
     this.sprites = [];
     this.scene = null;
@@ -77,6 +80,9 @@ export class Game {
     this.systemIndex = 0;
     this.hostiles = [];
     this.wormholes = [];
+    this.mapHover = null;
+    this.mapTime = 0;
+    this.mapProjected = null;
     this.bind();
     this.bindSetup();
     this.refreshContinue();
@@ -94,7 +100,7 @@ export class Game {
       if ([" ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key) || e.code === "Space") {
         e.preventDefault();
       }
-      if (this.mode === "play" && !e.repeat) this.handleKey(e);
+      if ((this.mode === "play" || this.mode === "map") && !e.repeat) this.handleKey(e);
     });
     window.addEventListener("keyup", (e) => {
       applyKeyEvent(this.keys, e, false);
@@ -136,6 +142,15 @@ export class Game {
     document.getElementById("btn-retry").onclick = () => this.continueSave() || this.openSetup();
     document.getElementById("btn-restart").onclick = () => this.openSetup();
     document.getElementById("btn-ending-title").onclick = () => this.show("title");
+    document.getElementById("btn-galaxy-close").onclick = () => this.closeMap();
+    if (this.galaxyView) {
+      this.galaxyView.addEventListener("mousedown", (e) => this.onMapPointer(e, true));
+      this.galaxyView.addEventListener("mousemove", (e) => this.onMapPointer(e, false));
+      this.galaxyView.addEventListener("mouseleave", () => {
+        this.mapHover = null;
+        this.galaxyView.style.cursor = "default";
+      });
+    }
     document.getElementById("btn-plot").onclick = () => {
       const x = Number(document.getElementById("nav-x").value);
       const y = Number(document.getElementById("nav-y").value);
@@ -263,7 +278,7 @@ export class Game {
       this.generateMain(settings, opts);
     };
     try {
-      const worker = new Worker("/js/worker.js?v=2.1.2", { type: "module" });
+      const worker = new Worker("/js/worker.js?v=2.1.3", { type: "module" });
       const id = 1;
       const timer = setTimeout(() => {
         worker.terminate();
@@ -424,11 +439,15 @@ export class Game {
   }
 
   show(mode) {
-    for (const id of ["title", "setup", "how", "intro", "game", "dialogue", "pause", "dead", "ending"]) {
-      const playish = (mode === "play" && id === "game") || (mode === "dialogue" && id === "game") || (mode === "pause" && id === "game");
+    for (const id of ["title", "setup", "how", "intro", "game", "dialogue", "pause", "dead", "ending", "galaxy"]) {
+      const playish =
+        (mode === "play" && id === "game") ||
+        (mode === "dialogue" && id === "game") ||
+        (mode === "pause" && id === "game") ||
+        (mode === "map" && (id === "game" || id === "galaxy"));
       document.getElementById(id).classList.toggle("hidden", id !== mode && !playish);
     }
-    if (mode === "play" || mode === "dialogue" || mode === "pause") {
+    if (mode === "play" || mode === "dialogue" || mode === "pause" || mode === "map") {
       document.getElementById("game").classList.remove("hidden");
     }
     this.mode = mode === "game" ? "play" : mode;
@@ -438,6 +457,11 @@ export class Game {
       this.resize();
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       this.view.focus();
+    }
+    if (mode === "map") {
+      this.resize();
+      this.resizeGalaxy();
+      this.drawGalaxyMap();
     }
   }
 
@@ -522,7 +546,7 @@ export class Game {
     if (this.introIndex >= INTRO.length) {
       this.show("play");
       if ((this.settings?.systems || 1) > 1) {
-        this.toast("PIP: Ice first. The jump gate is the orange ring by the yard — magenta on radar. JUMP locks a course.");
+        this.toast("PIP: Ice first. The jump gate is the orange ring by the yard — magenta on radar. JUMP locks a course. M opens the galaxy chart.");
       } else {
         this.toast("PIP: Ice first. Pale rocks. Hold Space. Try not to mine the station.");
       }
@@ -533,6 +557,14 @@ export class Game {
 
   handleKey(e) {
     const k = e.key;
+    if (k === "m" || k === "M") {
+      this.toggleMap();
+      return;
+    }
+    if (this.mode === "map") {
+      if (k === "Escape") this.closeMap();
+      return;
+    }
     if (k === "c" || k === "C") this.hail();
     if (k === "v" || k === "V") this.scan();
     if (k === "t" || k === "T") this.sellAtStation();
@@ -545,6 +577,7 @@ export class Game {
     if (act === "scan") this.scan();
     if (act === "sell") this.sellAtStation();
     if (act === "jump") this.jumpWormhole();
+    if (act === "map") this.toggleMap();
     if (act === "lock-gate") this.lockGate();
     if (act === "pause") this.show("pause");
     if (act === "resume") this.show("play");
@@ -625,7 +658,7 @@ export class Game {
   }
 
   lockGate() {
-    if (this.mode !== "play" || !this.player) return;
+    if ((this.mode !== "play" && this.mode !== "map") || !this.player) return;
     if (!this.wormholes?.length) {
       this.toast("PIP: This claim is one star. File a new one with more systems if you want a gate.");
       return;
@@ -634,6 +667,87 @@ export class Game {
     this.player.nav = { x: nearest.hole.x, y: nearest.hole.y };
     this.toast(`PIP: ${nearest.hole.name} locked. Orange ring by the yard. Fly in, then JUMP.`);
     this.audio.ui();
+  }
+
+  lockGateTo(target) {
+    if (!this.player) return;
+    const hole = gateToward(this.wormholes, target);
+    if (!hole) {
+      this.setMapStatus("No gate from this star to that one. Jump the chain.");
+      return;
+    }
+    this.player.nav = { x: hole.x, y: hole.y };
+    const name = this.galaxy?.systems[target]?.starName || hole.name;
+    this.closeMap();
+    this.toast(`PIP: Gate to ${name} locked. Orange ring by the yard. Fly in, then JUMP.`);
+    this.audio.ui();
+  }
+
+  toggleMap() {
+    if (this.mode === "map") {
+      this.closeMap();
+      return;
+    }
+    if (this.mode !== "play" || !this.ready || !this.galaxy) return;
+    this.openMap();
+  }
+
+  openMap() {
+    this.mapHover = null;
+    this.mapTime = 0;
+    const here = this.scene?.starName || this.galaxy?.systems[this.systemIndex]?.starName || "this star";
+    this.setMapStatus(`${here} · you are here`);
+    this.show("map");
+    this.audio.ui();
+  }
+
+  closeMap() {
+    if (this.mode !== "map") return;
+    this.mapHover = null;
+    this.show("play");
+  }
+
+  setMapStatus(text) {
+    const el = document.getElementById("galaxy-status");
+    if (el) el.textContent = text;
+  }
+
+  mapPointerPos(e) {
+    const rect = this.galaxyView.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  onMapPointer(e, click) {
+    if (this.mode !== "map" || !this.mapProjected) return;
+    const pos = this.mapPointerPos(e);
+    const hit = hitOverviewNode(this.mapProjected, pos.x, pos.y, 32);
+    this.mapHover = hit ? hit.index : null;
+    this.galaxyView.style.cursor = hit ? "pointer" : "default";
+    if (!click) {
+      if (hit) {
+        const node = hit.node;
+        if (node.current) this.setMapStatus(`${node.name} · you are here`);
+        else if (node.linked.includes(this.systemIndex) || this.wormholes.some((w) => w.target === node.index)) {
+          this.setMapStatus(`${node.name} · click to lock the gate`);
+        } else this.setMapStatus(`${node.name} · no direct gate from this star`);
+      }
+      return;
+    }
+    if (hit) this.onMapSelect(hit.index);
+  }
+
+  onMapSelect(index) {
+    const sys = this.galaxy?.systems[index];
+    if (!sys) return;
+    if (index === this.systemIndex) {
+      this.setMapStatus(`${sys.starName} · you are here`);
+      return;
+    }
+    if (!gateToward(this.wormholes, index)) {
+      this.setMapStatus(`${sys.starName} · no gate from this star. Jump the chain.`);
+      return;
+    }
+    this.lockGateTo(index);
   }
 
   jumpWormhole() {
@@ -806,6 +920,10 @@ export class Game {
     this.last = t;
     if (this.mode === "play" && this.ready) this.update(dt);
     this.draw();
+    if (this.mode === "map") {
+      this.mapTime += dt;
+      this.drawGalaxyMap();
+    }
     requestAnimationFrame(this.loop);
   }
 
@@ -1137,6 +1255,160 @@ export class Game {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.w = rect.width;
     this.h = rect.height;
+    if (this.mode === "map") this.resizeGalaxy();
+  }
+
+  resizeGalaxy() {
+    const canvas = this.galaxyView;
+    if (!canvas || !this.gctx) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 8 || rect.height < 8) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.max(1, rect.width * dpr);
+    canvas.height = Math.max(1, rect.height * dpr);
+    this.gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.mw = rect.width;
+    this.mh = rect.height;
+  }
+
+  drawGalaxyMap() {
+    if (!this.gctx || !this.galaxyView) return;
+    if (!this.mw || !this.mh) this.resizeGalaxy();
+    const ctx = this.gctx;
+    const w = this.mw || 0;
+    const h = this.mh || 0;
+    if (w < 8 || h < 8) return;
+    const overview = galaxyOverview(this.galaxy?.systems || [], this.galaxy?.numericSeed || 0, this.systemIndex);
+    const projected = projectOverview(overview, w, h, 72);
+    this.mapProjected = projected;
+
+    ctx.fillStyle = "#05070f";
+    ctx.fillRect(0, 0, w, h);
+    const field = ctx.createRadialGradient(w * 0.5, h * 0.42, 20, w * 0.5, h * 0.5, Math.max(w, h) * 0.7);
+    field.addColorStop(0, "rgba(28, 20, 48, 0.55)");
+    field.addColorStop(1, "rgba(5, 7, 15, 0)");
+    ctx.fillStyle = field;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(92, 225, 255, 0.07)";
+    ctx.lineWidth = 1;
+    for (let x = 40; x < w; x += 48) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    for (let y = 28; y < h; y += 48) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    const starRand = ((this.galaxy?.numericSeed || 1) * 1103515245 + 12345) >>> 0;
+    let s = starRand;
+    const next = () => {
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+    ctx.fillStyle = "rgba(215, 230, 255, 0.35)";
+    for (let i = 0; i < 90; i++) {
+      const sx = next() * w;
+      const sy = next() * h;
+      const r = next() < 0.12 ? 1.6 : 0.8;
+      ctx.globalAlpha = 0.18 + next() * 0.45;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.save();
+    ctx.setLineDash([7, 11]);
+    ctx.lineDashOffset = -this.mapTime * 26;
+    ctx.lineWidth = 2;
+    for (const edge of projected.edges) {
+      const fromHere = edge.a === this.systemIndex || edge.b === this.systemIndex;
+      ctx.strokeStyle = fromHere ? "rgba(229, 107, 255, 0.85)" : "rgba(92, 225, 255, 0.32)";
+      ctx.beginPath();
+      ctx.moveTo(edge.ax, edge.ay);
+      ctx.lineTo(edge.bx, edge.by);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    const palette = ["#5ce1ff", "#9aa8ff", "#e56bff", "#7ec8ff", "#ff9ad6", "#ffc14a"];
+    for (const node of projected.nodes) {
+      const hover = this.mapHover === node.index;
+      const linked = node.current || node.linked.includes(this.systemIndex) || this.wormholes.some((wh) => wh.target === node.index);
+      const color = node.name === "Helios" ? "#ffc14a" : palette[node.index % palette.length];
+      const radius = (node.current ? 16 : 12) + (hover ? 2 : 0);
+      const glow = ctx.createRadialGradient(node.sx, node.sy, 2, node.sx, node.sy, radius * 3.2);
+      glow.addColorStop(0, node.current ? "rgba(255, 193, 74, 0.45)" : "rgba(92, 225, 255, 0.22)");
+      glow.addColorStop(1, "rgba(92, 225, 255, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(node.sx, node.sy, radius * 3.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (node.current) {
+        ctx.strokeStyle = `rgba(255, 193, 74, ${0.55 + 0.35 * Math.sin(this.mapTime * 3)})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(node.sx, node.sy, radius + 8 + Math.sin(this.mapTime * 2.6) * 2, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = linked ? color : "#4a5870";
+      ctx.beginPath();
+      ctx.arc(node.sx, node.sy, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = hover ? "#d7e6ff" : linked ? "rgba(215, 230, 255, 0.7)" : "rgba(127, 147, 184, 0.4)";
+      ctx.lineWidth = hover ? 2 : 1;
+      ctx.stroke();
+
+      ctx.fillStyle = node.current ? "#ffc14a" : linked ? "#d7e6ff" : "#7f93b8";
+      ctx.font = "12px Share Tech Mono, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(node.name.toUpperCase(), node.sx, node.sy + radius + 8);
+      if (node.current) {
+        ctx.fillStyle = "#ffc14a";
+        ctx.font = "10px Share Tech Mono, monospace";
+        ctx.fillText("YOU", node.sx, node.sy + radius + 22);
+      }
+    }
+
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = "11px Share Tech Mono, monospace";
+    const legendY = h - 16;
+    ctx.fillStyle = "#ffc14a";
+    ctx.beginPath();
+    ctx.arc(18, legendY - 3, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillText("you", 28, legendY);
+    ctx.fillStyle = "#5ce1ff";
+    ctx.beginPath();
+    ctx.arc(78, legendY - 3, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillText("linked", 88, legendY);
+    ctx.fillStyle = "#4a5870";
+    ctx.beginPath();
+    ctx.arc(158, legendY - 3, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillText("out of reach", 168, legendY);
+    ctx.strokeStyle = "rgba(229, 107, 255, 0.85)";
+    ctx.setLineDash([5, 6]);
+    ctx.beginPath();
+    ctx.moveTo(278, legendY - 3);
+    ctx.lineTo(310, legendY - 3);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#e56bff";
+    ctx.fillText("wormhole lane", 316, legendY);
   }
 
   screenToWorld(sx, sy) {
