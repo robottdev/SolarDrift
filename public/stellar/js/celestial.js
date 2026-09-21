@@ -614,7 +614,7 @@ export function generateBackground(params) {
   const tex = new SpriteTexture(width, height);
   const voidCol = params.voidColor || new Color(0.008, 0.007, 0.012, 1);
   const rust = params.secondary || new Color(0.38, 0.12, 0.05, 1);
-  const contrast = params.contrast || 2.45;
+  const contrast = params.contrast || 1.95;
   const accent = new Color(
     clamp01(0.22 + tint.g * 0.35),
     clamp01(0.28 + tint.b * 0.25),
@@ -632,8 +632,8 @@ export function generateBackground(params) {
       const blob = Math.pow(n1, contrast);
       const wisps = Math.pow(n2, contrast + 0.35);
       const filament = Math.pow(n3, contrast + 0.7);
-      let col = mixColor(voidCol, tint, blob * brightness);
-      col = mixColor(col, rust, wisps * brightness * 0.72);
+      let col = mixColor(voidCol, tint, blob * brightness * 1.15);
+      col = mixColor(col, rust, wisps * brightness * 0.85);
       col = mixColor(col, accent, wisps * brightness * 0.22);
       col = mixColor(col, core, filament * brightness * 0.18);
       col = mixColor(col, Color.black, d * 0.55);

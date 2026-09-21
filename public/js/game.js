@@ -67,7 +67,7 @@ export class Game {
     this.dialogue = null;
     this.mode = "title";
     this.last = 0;
-    this.zoom = 0.72;
+    this.zoom = 0.82;
     this.cam = { x: 0, y: 0 };
     this.pointer = null;
     this.prices = stationPrices(1);

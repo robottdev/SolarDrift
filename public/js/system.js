@@ -329,11 +329,11 @@ function generateHeliosLayout({ seed, push, settings }) {
     persistence: 0.52,
     octaves: 5,
     starCount: 72,
-    tint: new Color(0.07, 0.2, 0.18, 1),
+    tint: new Color(0.1, 0.26, 0.22, 1),
     secondary: new Color(0.42, 0.12, 0.05, 1),
-    brightness: 0.26,
-    contrast: 2.55,
-    voidColor: new Color(0.006, 0.005, 0.01, 1),
+    brightness: 0.4,
+    contrast: 1.92,
+    voidColor: new Color(0.01, 0.012, 0.018, 1),
   });
   const background = { spriteIndex: push(bgTex), width: TEX.background, height: TEX.background };
 
@@ -639,9 +639,9 @@ function generateRemoteSystem({ seed, index, push, settings, mineralSprites, hos
     starCount: 58 + index * 8,
     tint: new Color(0.1 + (index % 3) * 0.03, 0.08, 0.2 + (index % 2) * 0.06, 1),
     secondary: new Color(0.36, 0.08 + (index % 2) * 0.04, 0.07, 1),
-    brightness: 0.23,
-    contrast: 2.6,
-    voidColor: new Color(0.005, 0.004, 0.01, 1),
+    brightness: 0.36,
+    contrast: 2.05,
+    voidColor: new Color(0.01, 0.01, 0.018, 1),
   });
   const background = { spriteIndex: push(bgTex), width: TEX.background, height: TEX.background };
   const planets = buildPlanets(remotePlanetSpecs(seed, settings.planetDensity, rand), rand, push, lightAngle);
