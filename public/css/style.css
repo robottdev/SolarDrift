@@ -1,14 +1,14 @@
 :root {
-  --bg: #07060e;
-  --panel: #0d1220;
-  --ink: #d7e6ff;
-  --dim: #7f93b8;
-  --cyan: #5ce1ff;
-  --amber: #ffc14a;
-  --magenta: #e56bff;
-  --green: #5cff9a;
-  --danger: #ff5a6a;
-  --line: rgba(92, 225, 255, 0.35);
+  --bg: #050308;
+  --panel: #0a090c;
+  --ink: #cfc6b8;
+  --dim: #6e675c;
+  --cyan: #6e9e8c;
+  --amber: #d4893a;
+  --magenta: #b45a7a;
+  --green: #7cb86a;
+  --danger: #c44a42;
+  --line: rgba(110, 158, 140, 0.28);
   --font: "Share Tech Mono", ui-monospace, monospace;
   --sans: "IBM Plex Sans", system-ui, sans-serif;
 }
@@ -40,8 +40,8 @@ input {
   z-index: 50;
   background: repeating-linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.12),
-    rgba(0, 0, 0, 0.12) 1px,
+    rgba(0, 0, 0, 0.22),
+    rgba(0, 0, 0, 0.22) 1px,
     transparent 1px,
     transparent 3px
   );
@@ -54,7 +54,7 @@ input {
   z-index: 20;
   display: grid;
   place-items: center;
-  background: radial-gradient(circle at 50% 30%, #15203a, #07060e 70%);
+  background: radial-gradient(circle at 50% 30%, #12100e, #050308 72%);
 }
 
 #loading {
@@ -71,8 +71,8 @@ input {
 .dialogue-card {
   width: min(720px, calc(100vw - 32px));
   border: 1px solid var(--line);
-  box-shadow: 0 0 0 4px rgba(12, 18, 32, 0.9), 0 0 40px rgba(92, 225, 255, 0.12);
-  background: linear-gradient(180deg, #10182c, #0a1020);
+  box-shadow: 0 0 0 4px rgba(8, 7, 10, 0.92), 0 0 40px rgba(110, 158, 140, 0.08);
+  background: linear-gradient(180deg, #12110f, #08070a);
   padding: 28px 32px;
 }
 
@@ -500,7 +500,7 @@ kbd {
 
 #galaxy {
   z-index: 22;
-  background: radial-gradient(circle at 50% 28%, rgba(18, 28, 52, 0.92), rgba(5, 6, 12, 0.96) 72%);
+  background: radial-gradient(circle at 50% 28%, rgba(18, 14, 12, 0.92), rgba(5, 3, 8, 0.97) 72%);
 }
 
 .galaxy-card {
@@ -510,8 +510,8 @@ kbd {
   flex-direction: column;
   gap: 12px;
   border: 1px solid var(--line);
-  box-shadow: 0 0 0 4px rgba(12, 18, 32, 0.9), 0 0 40px rgba(229, 107, 255, 0.12);
-  background: linear-gradient(180deg, #10182c, #0a1020);
+  box-shadow: 0 0 0 4px rgba(8, 7, 10, 0.92), 0 0 40px rgba(180, 90, 58, 0.08);
+  background: linear-gradient(180deg, #12110f, #08070a);
   padding: 20px 22px 18px;
 }
 
